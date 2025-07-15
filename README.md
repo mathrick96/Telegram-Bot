@@ -18,3 +18,6 @@ I will need to:
 * deploy this to the cloud
 * schedule the API call at the time the user wants
 * do some prompt engineering to rotate the topic of the short story as much as possible
+
+
+(list of topics from https://eslvault.com/conversation-topics/)
