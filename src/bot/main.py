@@ -2,6 +2,8 @@ import logging, os
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
+from telegram.constants import ParseMode
+
 
 load_dotenv()
 bot_key = os.getenv("TELEGRAM_BOT_KEY")
@@ -12,13 +14,21 @@ logging.basicConfig(
     level=logging.INFO
 )
 
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await context.bot.send_message(chat_id=update.effective_chat.id, text="👋 Hello and welcome to Daily Language Boost!\n" \
-    "I’ll send you one short, level-appropriate text **every day** in the language you choose, plus a few follow-up questions to keep you thinking."
-    " **How to get started** " \
-    "1️⃣  Choose your target language  " \
-    "2️⃣  Pick your CEFR level (A1–C2)  " \
-    "3️⃣  Tell me the local time you’d like to receive each lesson")
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text = (
+            "👋 Hello and welcome to Daily Language Boost\\!\n"
+            "I’ll send you one short, level\\-appropriate text **every day** in the language you choose, plus a few follow\\-up questions to keep you thinking\\.\n"
+            "**How to get started**\n"
+            "1️⃣  Choose your target language\n"
+            "2️⃣  Pick your CEFR level \\(A1–C2\\)\n"
+            "3️⃣  Tell me the local time you’d like to receive each lesson"
+        ),
+        parse_mode=ParseMode.MARKDOWN_V2
+    )
+
 
 async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=update.effective_chat.id, text="I'm a bot, please talk to me!")
