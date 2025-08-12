@@ -25,7 +25,7 @@ def generate_text(language, level):
     topic = _random_topic()
 
     response = client.responses.create(
-    model="gpt-4.1-mini",
+    model="gpt-5-mini",
     instructions='You are a language-learning assistant. Your task is to generate a medium-length text in a specified target language, at a given CEFR level, on a given topic.  ' \
     '1. Role: You are an expert at adapting texts to CEFR levels.  ' \
     '2. Instructions: Write a text (about 150–200 words) in the requested language, using vocabulary and structures appropriate to the specified CEFR level.  ' \
@@ -52,4 +52,4 @@ def generate_text(language, level):
     
      
 
-print(generate_text('italian', 'A2'))
+print(generate_text('italian', 'C2'))
