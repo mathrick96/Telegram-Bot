@@ -1,4 +1,5 @@
 import logging, os
+import sqlite3
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
@@ -7,6 +8,9 @@ from telegram.constants import ParseMode
 
 load_dotenv()
 bot_key = os.getenv("TELEGRAM_BOT_KEY")
+
+# database connection 
+conn = sqlite3.connect('/app/src/data/users.db')
 
 
 logging.basicConfig(
