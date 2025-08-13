@@ -15,4 +15,4 @@ COPY src/ /app/src/
 
 # Option A: run from /app/src (common for “src/” layout)
 WORKDIR /app/src
-ENTRYPOINT ["python", "-m", "bot.story"]
+ENTRYPOINT ["python", "-m", "bot.main"]
