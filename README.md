@@ -20,4 +20,4 @@ I will need to:
 * do some prompt engineering to rotate the topic of the short story as much as possible
 
 
-(list of topics from https://eslvault.com/conversation-topics/)
+(list of topics from https://eslvault.com/conversation-topics)
