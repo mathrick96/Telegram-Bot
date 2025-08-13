@@ -1,7 +1,7 @@
 import logging, os
 from dotenv import load_dotenv
 from telegram import Update
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
 from telegram.constants import ParseMode
 
 
@@ -34,6 +34,11 @@ async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=update.effective_chat.id, text="I'm a bot, please talk to me!")
 
 
+async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    id = update.message.from_user.id
+    text = update.message.text
+    await update.message.reply_text(f"Your id: {id}, your message: {text}")
+
 if __name__ == '__main__':
     application = ApplicationBuilder().token(bot_key).build()
     
@@ -41,6 +46,7 @@ if __name__ == '__main__':
     help_handler = CommandHandler('help', help)
     application.add_handler(start_handler)
     application.add_handler(help_handler)
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message))
 
     
     application.run_polling()
