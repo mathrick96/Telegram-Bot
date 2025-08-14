@@ -124,8 +124,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await context.bot.send_message(chat_id=update.effective_chat.id, text="I'm a bot, please talk to me!")
+async def configure(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # algoritmo
+    # quando questo comando viene chiamato si inizia il processo di onboarding dell'user
+    # 1) si crea una riga piena di NULL con solo l'user_id
+    # 2) si chiede quale è la lingua scelta (tra una lista di lingue che devo preparare) e la si salva nel db
+    # 3) si chiede quale sia il livello (salvandolo in uppercase e tra i sei possibili) e lo si salva nel db
+    # 4) si chiede quale sia l'orario a in cui si vuole ricevere il testo (controllando che sia un'ora valida) e lo si salva nel db
+    # 5) una volta prese queste tre variabili si 
+
+    pass
 
 
 async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
