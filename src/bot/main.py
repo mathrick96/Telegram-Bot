@@ -5,13 +5,7 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
 from telegram.constants import ParseMode
 
-
-load_dotenv()
-bot_key = os.getenv("TELEGRAM_BOT_KEY")
-
-# database connection 
-conn = sqlite3.connect('/app/src/data/users.db')
-
+DB_PATH = "/app/src/data/users.db"
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -19,6 +13,102 @@ logging.basicConfig(
 )
 
 
+load_dotenv()
+bot_key = os.getenv("TELEGRAM_BOT_KEY")
+
+# database connection and table creation
+conn = sqlite3.connect('/app/src/data/users.db')
+cursor = conn.cursor()
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS users(
+    user_id INTEGER PRIMARY KEY,
+    language TEXT,
+    level TEXT,
+    delivery_time TEXT,   
+    configured INTEGER   
+)
+""")
+
+conn.close()
+
+# dummy_user = (358696654, 'thai', 'A2', '15:00:00', 1)
+
+# # Avoid duplicate PK on re-runs
+# cursor.execute(
+#     "INSERT OR IGNORE INTO users (user_id, language, level, delivery_time, configured) VALUES (?, ?, ?, ?, ?)",
+#     dummy_user
+# )
+
+# conn.commit()
+
+# rows = cursor.execute("SELECT * FROM users").fetchall()
+
+# helper functions for db interaction
+
+def get_user_data(user_id):
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
+            row = cur.fetchone()
+            if row:
+                logging.info(f"Retrieved user_id {user_id} successfully.")
+                return True, dict(row)
+            else:
+                logging.warning(f"No user found with user_id {user_id}.")
+                return False, None
+    except Exception as e:
+        logging.error(f"Error retrieving user_id {user_id}: {e}")
+        return False, None
+
+
+def save_new_user(user_data):
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT OR IGNORE INTO users
+                (user_id, language, level, delivery_time, configured)
+                VALUES (?, ?, ?, ?, ?)
+            """, user_data)
+            conn.commit()
+            if cur.rowcount > 0:
+                logging.info(f"Inserted new user_id {user_data[0]} successfully.")
+                return True
+            else:
+                logging.warning(f"User_id {user_data[0]} already exists. No insertion.")
+                return False
+    except Exception as e:
+        logging.error(f"Error inserting user_id {user_data[0]}: {e}")
+        return False
+
+def update_user(user_data):
+    try:
+        user_id, language, level, delivery_time, configured = user_data
+        with sqlite3.connect(DB_PATH) as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE users
+                   SET language = ?,
+                       level = ?,
+                       delivery_time = ?,
+                       configured = ?
+                 WHERE user_id = ?
+            """, (language, level, delivery_time, configured, user_id))
+            conn.commit()
+            if cur.rowcount > 0:
+                logging.info(f"Updated user_id {user_id} successfully.")
+                return True
+            else:
+                logging.warning(f"No user found with user_id {user_id}. Update skipped.")
+                return False
+    except Exception as e:
+        logging.error(f"Error updating user_id {user_id}: {e}")
+        return False
+
+# logging.info("\nUsers table rows: %s", rows) 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
