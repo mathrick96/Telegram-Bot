@@ -1,0 +1,7 @@
+
+services:
+  languagebot:
+    build: .
+    env_file: .env
+    volumes: 
+      - ./src:/app/src
