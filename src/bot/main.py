@@ -131,7 +131,7 @@ async def configure(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 2) si chiede quale è la lingua scelta (tra una lista di lingue che devo preparare) e la si salva nel db
     # 3) si chiede quale sia il livello (salvandolo in uppercase e tra i sei possibili) e lo si salva nel db
     # 4) si chiede quale sia l'orario a in cui si vuole ricevere il testo (controllando che sia un'ora valida) e lo si salva nel db
-    # 5) una volta prese queste tre variabili si 
+    # 5) usare un branch per allenarsi su come si fa
 
     pass
 
