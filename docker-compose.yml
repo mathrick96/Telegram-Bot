@@ -1,7 +1,9 @@
-
+name: languagebot
 services:
   languagebot:
     build: .
     env_file: .env
-    volumes: 
+    volumes:
       - ./src:/app/src
+    restart: unless-stopped
+
