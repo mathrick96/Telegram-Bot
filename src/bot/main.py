@@ -12,6 +12,7 @@ logging.basicConfig(
     level=logging.INFO
 )
 
+dummy_user = (358696654, 'thai', 'A2', '15:00:00', 1)
 
 load_dotenv()
 bot_key = os.getenv("TELEGRAM_BOT_KEY")
@@ -32,19 +33,31 @@ CREATE TABLE IF NOT EXISTS users(
 
 conn.close()
 
-# dummy_user = (358696654, 'thai', 'A2', '15:00:00', 1)
+######################################################################################
+############################   HELPER FUNCTIONS   ####################################
+######################################################################################
 
-# # Avoid duplicate PK on re-runs
-# cursor.execute(
-#     "INSERT OR IGNORE INTO users (user_id, language, level, delivery_time, configured) VALUES (?, ?, ?, ?, ?)",
-#     dummy_user
-# )
-
-# conn.commit()
-
-# rows = cursor.execute("SELECT * FROM users").fetchall()
-
-# helper functions for db interaction
+def log_all_users():
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT user_id, language, level, delivery_time, configured
+                FROM users
+                ORDER BY user_id
+            """)
+            rows = cur.fetchall()
+            logging.info("DB dump: %d row(s) in users.", len(rows))
+            for r in rows:
+                logging.info(
+                    "user_id=%s | language=%s | level=%s | delivery_time=%s | configured=%s",
+                    r["user_id"], r["language"], r["level"], r["delivery_time"], r["configured"]
+                )
+            return len(rows)
+    except Exception as e:
+        logging.exception("DB dump failed: %s", e)
+        return None
 
 def get_user_data(user_id):
     try:
@@ -107,8 +120,29 @@ def update_user(user_data):
     except Exception as e:
         logging.error(f"Error updating user_id {user_id}: {e}")
         return False
+    
+def delete_user(user_id):
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            cur = conn.cursor()
+            cur.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
+            conn.commit()
+            if cur.rowcount > 0:
+                logging.info(f"Deleted user_id {user_id} successfully.")
+                return True
+            else:
+                logging.warning(f"No user found with user_id {user_id}. Deletion skipped.")
+                return False
+    except Exception as e:
+        logging.error(f"Error deleting user_id {user_id}: {e}")
+        return False
 
-# logging.info("\nUsers table rows: %s", rows) 
+
+######################################################################################
+############################   MESSAGES & COMMANDS   #################################
+######################################################################################
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
@@ -123,6 +157,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode=ParseMode.MARKDOWN_V2
     )
 
+async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    id = update.message.from_user.id
+    text = update.message.text
+    await update.message.reply_text(f"Your id: {id}, your message: {text}")
+
 
 async def configure(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # algoritmo
@@ -135,20 +174,53 @@ async def configure(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     pass
 
+######################################################################################
+###############################   DIAGNOSTICS   ######################################
+######################################################################################
 
-async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    id = update.message.from_user.id
-    text = update.message.text
-    await update.message.reply_text(f"Your id: {id}, your message: {text}")
+
+async def insert_dummy_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    saved = save_new_user(dummy_user)
+    if saved:
+        await context.bot.send_message(chat_id=update.effective_chat.id, text = ('dummy user saved'))
+    else:
+        await context.bot.send_message(chat_id=update.effective_chat.id, text = ('error in saving dummy user'))
+
+async def delete_dummy_user(update:Update, context: ContextTypes.DEFAULT_TYPE):
+    deleted = delete_user(dummy_user[0])
+    if deleted:
+        await context.bot.send_message(chat_id=update.effective_chat.id, text = ('dummy user deleted'))
+    else:
+        await context.bot.send_message(chat_id=update.effective_chat.id, text = ('error in deleting dummy user'))
+
+async def log_db_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    n = log_all_users()
+    if n is None:
+        await update.message.reply_text("DB dump failed. Check server logs.")
+    else:
+        await update.message.reply_text(f"Logged {n} row(s) to server logs.")
+
+
+######################################################################################
+##################################   MAIN    #########################################
+######################################################################################
+
 
 if __name__ == '__main__':
     application = ApplicationBuilder().token(bot_key).build()
-    
-    start_handler = CommandHandler('start', start)
-    help_handler = CommandHandler('help', help)
-    application.add_handler(start_handler)
-    application.add_handler(help_handler)
+
+    # message handler
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message))
+
+    # diagnostics
+    application.add_handler(CommandHandler('dummy', insert_dummy_user))
+    application.add_handler(CommandHandler('deldummy', delete_dummy_user))
+    application.add_handler(CommandHandler('logdb', log_db_cmd))
+
+    # command handlers
+    application.add_handler(CommandHandler('start', start))
+
+
 
     
     application.run_polling()
