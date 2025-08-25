@@ -3,7 +3,7 @@ import sqlite3
 import json
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters, ConversationHandler
 from telegram.constants import ParseMode
 
 DB_PATH = "/app/src/data/users.db"
@@ -79,6 +79,26 @@ def get_user_data(user_id):
     except Exception as e:
         logging.error(f"Error retrieving user_id {user_id}: {e}")
         return False, None
+    
+def create_new_user(user_id):
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT OR IGNORE INTO users
+                (user_id, configured)
+                VALUES (?, 0)
+            """, (user_id,))
+            conn.commit()
+            if cur.rowcount > 0:
+                logging.info(f"Inserted new user_id {user_id} successfully.")
+                return True
+            else:
+                logging.warning(f"User_id {user_id} already exists. No insertion.")
+                return False
+    except Exception as e:
+        logging.error(f"Error inserting user_id {user_id}: {e}")
+        return False
 
 
 def save_new_user(user_data):
@@ -188,13 +208,7 @@ async def configure(update: Update, context: ContextTypes.DEFAULT_TYPE):
     rows = chunk(items, 3)
     kb = [[InlineKeyboardButton(l[0], callback_data=f'{l[1]}') for l in row] for row in rows]
      
-    user_id = update.message.from_user.id
-
-
-    
-
-    await update.message.reply_text("Hey there!\n"
-                                    "Please selelct the name of the language that you want to study\n",
+    await update.message.reply_text("Hey there!\nPlease selelct the name of the language that you want to study or select /cancel to abort.\n",
                                     reply_markup=InlineKeyboardMarkup(kb))
     
 
@@ -209,8 +223,16 @@ async def configure(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     return LANG
 
-#async def level(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def lang_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    language = update.message.text.strip()
+    user_id = update.message.from_user.id
 
+    
+
+#async def level(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    await update.message.reply_text("Conversation cancelled.")
+    return ConversationHandler.END
 
 ######################################################################################
 ###############################   DIAGNOSTICS   ######################################
