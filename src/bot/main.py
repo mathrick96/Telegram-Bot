@@ -1,7 +1,8 @@
 import logging, os
 import sqlite3
+import json
 from dotenv import load_dotenv
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters
 from telegram.constants import ParseMode
 
@@ -16,6 +17,9 @@ dummy_user = (000000000, 'english', 'A1', '00:00:00')
 
 load_dotenv()
 bot_key = os.getenv("TELEGRAM_BOT_KEY")
+
+with open("/app/src/bot/config.json") as f:
+            cfg = json.load(f)
 
 # database connection and table creation
 conn = sqlite3.connect('/app/src/data/users.db')
@@ -159,9 +163,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "👋 Hello and welcome to Daily Language Boost\\!\n"
             "I’ll send you one short, level\\-appropriate text **every day** in the language you choose, plus a few follow\\-up questions to keep you thinking\\.\n"
             "**How to get started**\n"
-            "1️⃣  Choose your target language\n"
-            "2️⃣  Pick your CEFR level \\(A1–C2\\)\n"
-            "3️⃣  Tell me the local time you’d like to receive each lesson"
+            "Start with the command /configure and tell me the following data"
+            "1️⃣  Your target language\n"
+            "2️⃣  Your CEFR level in that language \\(A1–C2\\)\n"
+            "3️⃣  The local time you’d like to receive each text"
         ),
         parse_mode=ParseMode.MARKDOWN_V2
     )
@@ -172,9 +177,26 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"Your id: {id}, your message: {text}")
 
 
+LANG, LEVEL, TIME = range(3)
+
 async def configure(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    "Starts the configuration and asks for the language"
+  
+    def chunk(lst, n): 
+        return [lst[i:i+n] for i in range(0, len(lst), n)]
+    items = list(cfg['languages'].items())
+    rows = chunk(items, 3)
+    kb = [[InlineKeyboardButton(l[0], callback_data=f'{l[1]}') for l in row] for row in rows]
+     
     user_id = update.message.from_user.id
 
+
+    
+
+    await update.message.reply_text("Hey there!\n"
+                                    "Please selelct the name of the language that you want to study\n",
+                                    reply_markup=InlineKeyboardMarkup(kb))
+    
 
 
     # algoritmo
@@ -185,7 +207,10 @@ async def configure(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 4) si chiede quale sia l'orario a in cui si vuole ricevere il testo (controllando che sia un'ora valida) e lo si salva nel db
     # 5) usare un branch per allenarsi su come si fa
 
-    pass
+    return LANG
+
+#async def level(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
 
 ######################################################################################
 ###############################   DIAGNOSTICS   ######################################
