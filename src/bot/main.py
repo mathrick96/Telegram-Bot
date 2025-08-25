@@ -12,7 +12,7 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-dummy_user = (358696654, 'thai', 'A2', '15:00:00', 1)
+dummy_user = (000000000, 'english', 'A1', '00:00:00')
 
 load_dotenv()
 bot_key = os.getenv("TELEGRAM_BOT_KEY")
@@ -84,7 +84,7 @@ def save_new_user(user_data):
             cur.execute("""
                 INSERT OR IGNORE INTO users
                 (user_id, language, level, delivery_time, configured)
-                VALUES (?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, 1)
             """, user_data)
             conn.commit()
             if cur.rowcount > 0:
@@ -97,19 +97,28 @@ def save_new_user(user_data):
         logging.error(f"Error inserting user_id {user_data[0]}: {e}")
         return False
 
-def update_user(user_data):
+def update_user(user_id, language=None, level=None, delivery_time=None, configured=None):
+    fields, values = [], []
+    if language is not None:
+        fields.append("language = ?")
+        values.append(language)
+    if level is not None:
+        fields.append("level = ?")
+        values.append(level)
+    if delivery_time is not None:
+        fields.append("delivery_time = ?")
+        values.append(delivery_time)
+    if configured is not None:
+        fields.append("configured = ?")
+        values.append(configured)
+    if not fields:
+        return False  # nothing to update
+    values.append(user_id)
+    db_query = f"UPDATE users SET {', '.join(fields)} WHERE user_id = ?"
     try:
-        user_id, language, level, delivery_time, configured = user_data
         with sqlite3.connect(DB_PATH) as conn:
             cur = conn.cursor()
-            cur.execute("""
-                UPDATE users
-                   SET language = ?,
-                       level = ?,
-                       delivery_time = ?,
-                       configured = ?
-                 WHERE user_id = ?
-            """, (language, level, delivery_time, configured, user_id))
+            cur.execute(db_query, values)
             conn.commit()
             if cur.rowcount > 0:
                 logging.info(f"Updated user_id {user_id} successfully.")
@@ -164,6 +173,10 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def configure(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+
+
+
     # algoritmo
     # quando questo comando viene chiamato si inizia il processo di onboarding dell'user
     # 1) si crea una riga piena di NULL con solo l'user_id
@@ -219,6 +232,7 @@ if __name__ == '__main__':
 
     # command handlers
     application.add_handler(CommandHandler('start', start))
+    application.add_handler(CommandHandler('configure', configure))
 
 
 
