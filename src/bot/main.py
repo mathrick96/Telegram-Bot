@@ -1,6 +1,7 @@
 import logging, os
 import sqlite3
 import json
+from datetime import datetime
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters, ConversationHandler, CallbackQueryHandler
@@ -186,7 +187,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "👋 Hello and welcome to Daily Language Boost\\!\n"
             "I’ll send you one short, level\\-appropriate text **every day** in the language you choose, plus a few follow\\-up questions to keep you thinking\\.\n"
             "**How to get started**\n"
-            "Start with the command /configure and tell me the following data"
+            "Start with the command /configure and tell me the following data\n"
             "1️⃣  Your target language\n"
             "2️⃣  Your CEFR level in that language \\(A1–C2\\)\n"
             "3️⃣  The local time you’d like to receive each text"
@@ -198,16 +199,6 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     id = update.message.from_user.id
     text = update.message.text
     await update.message.reply_text(f"Your id: {id}, your message: {text}")
-
-
-
-    # algoritmo
-    # quando questo comando viene chiamato si inizia il processo di onboarding dell'user
-    # 1) si crea una riga piena di NULL con solo l'user_id
-    # 2) si chiede quale è la lingua scelta (tra una lista di lingue che devo preparare) e la si salva nel db
-    # 3) si chiede quale sia il livello (salvandolo in uppercase e tra i sei possibili) e lo si salva nel db
-    # 4) si chiede quale sia l'orario a in cui si vuole ricevere il testo (controllando che sia un'ora valida) e lo si salva nel db
-    # 5) usare un branch per allenarsi su come si fa
 
 LANG, LEVEL, TIME, COMPLETE = range(4)
 
@@ -222,8 +213,6 @@ async def configure(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Hey there!\nPlease selelct the name of the language that you want to study or select /cancel to abort.\n",
                                     reply_markup=InlineKeyboardMarkup(kb))
     
-
-
     return LANG
 
 async def lang_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -235,8 +224,6 @@ async def lang_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     levels = cfg['cefr_levels']
     rows = chunk(levels, 2)
     kb = [[InlineKeyboardButton(l, callback_data=f'{l}') for l in row] for row in rows]
-
-
 
     await query.edit_message_text(text=f"You chose {language}.\nNow select a level or type /cancel to abort",
                                            reply_markup=InlineKeyboardMarkup(kb))
@@ -255,26 +242,52 @@ async def level_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return TIME
 
 async def time_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    time = query.data
-    context.user_data["time"] = time
-    kb = [[InlineKeyboardButton('Ok', callback_data='ok')]]
-    update_user(query.from_user.id, delivery_time=time)
-    await query.edit_message_text(f"Setup complete!\nYou chose the following options:\nLanguage: {context.user_data["language"]}"
-                                  f"\nLevel: {context.user_data["level"]}\nTime: {context.user_data["time"]}.1n"
-                                  "If this is correct tap ok, if not type /cancel and start again.",
-                                  reply_markup=InlineKeyboardMarkup(kb))
+    """Receive a HH:MM string and finalize configuration."""
+    time_text = update.message.text.strip()
+    kb = [[InlineKeyboardButton('OK', callback_data='ok'), InlineKeyboardButton('CANCEL', callback_data='/cancel')]]
+    # Validate time format
+    try:
+        valid_time = datetime.strptime(time_text, "%H:%M").strftime("%H:%M")
+    except ValueError:
+        await update.message.reply_text(
+            "Please send the time in 24‑hour HH:MM format (e.g., 18:30)."
+        )
+        return TIME                     # stay in the same state until valid
+
+    context.user_data["time"] = valid_time
+    update_user(update.effective_user.id,
+                delivery_time=valid_time)
+
+    await update.message.reply_text(
+        "Setup complete!\n"
+        f"Language: {context.user_data['language']}\n"
+        f"Level: {context.user_data['level']}\n"
+        f"Delivery time: {valid_time}\n"
+        "Press OK if you want to confirm the setup, CANCEL if you want to abort.",
+        reply_markup=InlineKeyboardMarkup(kb)
+    )
     return COMPLETE
 
 async def complete_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # here I want to react to the press of the OK button changing the status of configured to 1
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == "ok":
+        update_user(query.from_user.id, configured=1)
+        await query.edit_message_text("Setup complete! Use /help to see all commands.")
+    else:  # "cancel"
+        await query.edit_message_text("Setup aborted. Run /configure to start over.")
+
     return ConversationHandler.END
+
     
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.message.reply_text("Conversation cancelled.")
+    await update.message.reply_text("Setup cancelled.")
     return ConversationHandler.END
+
+
+
 ######################################################################################
 ###############################   DIAGNOSTICS   ######################################
 ######################################################################################
@@ -324,9 +337,9 @@ if __name__ == '__main__':
     application.add_handler(ConversationHandler(
         entry_points=[CommandHandler("configure", configure)],
         states={
-            LANG: [CallbackQueryHandler(lang_handler)],   # handler for inline buttons
+            LANG: [CallbackQueryHandler(lang_handler)],
             LEVEL: [CallbackQueryHandler(level_handler)],
-            TIME: [CallbackQueryHandler(time_handler)],
+            TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, time_handler)],
             COMPLETE: [CallbackQueryHandler(complete_handler)]
             },
         fallbacks=[CommandHandler("cancel", cancel)],
