@@ -3,7 +3,7 @@ import sqlite3
 import json
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters, ConversationHandler
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters, ConversationHandler, CallbackQueryHandler
 from telegram.constants import ParseMode
 
 DB_PATH = "/app/src/data/users.db"
@@ -12,6 +12,9 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
+
+def chunk(lst, n): 
+        return [lst[i:i+n] for i in range(0, len(lst), n)]
 
 dummy_user = (000000000, 'english', 'A1', '00:00:00')
 
@@ -197,21 +200,6 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"Your id: {id}, your message: {text}")
 
 
-LANG, LEVEL, TIME = range(3)
-
-async def configure(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    "Starts the configuration and asks for the language"
-  
-    def chunk(lst, n): 
-        return [lst[i:i+n] for i in range(0, len(lst), n)]
-    items = list(cfg['languages'].items())
-    rows = chunk(items, 3)
-    kb = [[InlineKeyboardButton(l[0], callback_data=f'{l[1]}') for l in row] for row in rows]
-     
-    await update.message.reply_text("Hey there!\nPlease selelct the name of the language that you want to study or select /cancel to abort.\n",
-                                    reply_markup=InlineKeyboardMarkup(kb))
-    
-
 
     # algoritmo
     # quando questo comando viene chiamato si inizia il processo di onboarding dell'user
@@ -221,19 +209,52 @@ async def configure(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 4) si chiede quale sia l'orario a in cui si vuole ricevere il testo (controllando che sia un'ora valida) e lo si salva nel db
     # 5) usare un branch per allenarsi su come si fa
 
+LANG, LEVEL, TIME = range(3)
+
+async def configure(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    "Starts the configuration and asks for the language"
+    user_id = update.message.from_user.id
+    create_new_user(user_id)
+    items = list(cfg['languages'].items())
+    rows = chunk(items, 3)
+    kb = [[InlineKeyboardButton(l[0], callback_data=f'{l[1]}') for l in row] for row in rows]
+     
+    await update.message.reply_text("Hey there!\nPlease selelct the name of the language that you want to study or select /cancel to abort.\n",
+                                    reply_markup=InlineKeyboardMarkup(kb))
+    
+
+
     return LANG
 
 async def lang_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    language = update.message.text.strip()
-    user_id = update.message.from_user.id
+    query = update.callback_query
+    await query.answer()
+    language = query.data 
+    update_user(query.from_user.id, language=language)
+    levels = cfg['cefr_levels']
+    rows = chunk(levels, 2)
+    kb = [[InlineKeyboardButton(l, callback_data=f'{l}') for l in row] for row in rows]
+
+
+
+    await query.edit_message_text(text=f"You chose {language}.\nNow select a level or type /cancel to abort",
+                                           reply_markup=InlineKeyboardMarkup(kb))
+    
+    return LEVEL
+
+
+async def level_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    level = query.data
+    update_user(query.from_user.id, level=level)
+
 
     
 
-#async def level(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Conversation cancelled.")
     return ConversationHandler.END
-
 ######################################################################################
 ###############################   DIAGNOSTICS   ######################################
 ######################################################################################
@@ -280,6 +301,17 @@ if __name__ == '__main__':
     # command handlers
     application.add_handler(CommandHandler('start', start))
     application.add_handler(CommandHandler('configure', configure))
+
+    application.add_handler(ConversationHandler(
+        entry_points=[CommandHandler("configure", configure)],
+        states={
+            LANG: [CallbackQueryHandler(lang_handler)],   # handler for inline buttons
+            LEVEL: [CallbackQueryHandler(level_handler)],
+            # TIME: [...],
+            },
+        fallbacks=[CommandHandler("cancel", cancel)],
+        )
+    )
 
 
 
