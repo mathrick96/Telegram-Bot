@@ -209,7 +209,7 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 4) si chiede quale sia l'orario a in cui si vuole ricevere il testo (controllando che sia un'ora valida) e lo si salva nel db
     # 5) usare un branch per allenarsi su come si fa
 
-LANG, LEVEL, TIME = range(3)
+LANG, LEVEL, TIME, COMPLETE = range(4)
 
 async def configure(update: Update, context: ContextTypes.DEFAULT_TYPE):
     "Starts the configuration and asks for the language"
@@ -230,6 +230,7 @@ async def lang_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     language = query.data 
+    context.user_data["language"] = language
     update_user(query.from_user.id, language=language)
     levels = cfg['cefr_levels']
     rows = chunk(levels, 2)
@@ -247,9 +248,28 @@ async def level_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     level = query.data
+    context.user_data["level"] = level
     update_user(query.from_user.id, level=level)
+    await query.edit_message_text(text=f"You chose {level}.\nNow select a delivery time in the form HH:MM or type /cancel to abort")
 
+    return TIME
 
+async def time_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    time = query.data
+    context.user_data["time"] = time
+    kb = [[InlineKeyboardButton('Ok', callback_data='ok')]]
+    update_user(query.from_user.id, delivery_time=time)
+    await query.edit_message_text(f"Setup complete!\nYou chose the following options:\nLanguage: {context.user_data["language"]}"
+                                  f"\nLevel: {context.user_data["level"]}\nTime: {context.user_data["time"]}.1n"
+                                  "If this is correct tap ok, if not type /cancel and start again.",
+                                  reply_markup=InlineKeyboardMarkup(kb))
+    return COMPLETE
+
+async def complete_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # here I want to react to the press of the OK button changing the status of configured to 1
+    return ConversationHandler.END
     
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -291,7 +311,7 @@ if __name__ == '__main__':
     application = ApplicationBuilder().token(bot_key).build()
 
     # message handler
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message))
+    #application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message))
 
     # diagnostics
     application.add_handler(CommandHandler('dummy', insert_dummy_user))
@@ -300,14 +320,14 @@ if __name__ == '__main__':
 
     # command handlers
     application.add_handler(CommandHandler('start', start))
-    application.add_handler(CommandHandler('configure', configure))
 
     application.add_handler(ConversationHandler(
         entry_points=[CommandHandler("configure", configure)],
         states={
             LANG: [CallbackQueryHandler(lang_handler)],   # handler for inline buttons
             LEVEL: [CallbackQueryHandler(level_handler)],
-            # TIME: [...],
+            TIME: [CallbackQueryHandler(time_handler)],
+            COMPLETE: [CallbackQueryHandler(complete_handler)]
             },
         fallbacks=[CommandHandler("cancel", cancel)],
         )
