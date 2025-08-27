@@ -200,20 +200,47 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     await update.message.reply_text(f"Your id: {id}, your message: {text}")
 
-LANG, LEVEL, TIME, COMPLETE = range(4)
+LANG, LEVEL, TIME, COMPLETE, RECONFIRM = range(5)
 
 async def configure(update: Update, context: ContextTypes.DEFAULT_TYPE):
     "Starts the configuration and asks for the language"
     user_id = update.message.from_user.id
+    _, user = get_user_data(user_id)
+    if user and user.get("configured") == 1:
+        kb = [[InlineKeyboardButton("Yes", callback_data="yes"),
+               InlineKeyboardButton("No", callback_data="no")]]
+        await update.message.reply_text(
+            "You are already configured. Do you want to reconfigure?",
+            reply_markup=InlineKeyboardMarkup(kb),
+        )
+        return RECONFIRM
     create_new_user(user_id)
     items = list(cfg['languages'].items())
     rows = chunk(items, 3)
     kb = [[InlineKeyboardButton(l[0], callback_data=f'{l[1]}') for l in row] for row in rows]
      
-    await update.message.reply_text("Hey there!\nPlease selelct the name of the language that you want to study or select /cancel to abort.\n",
-                                    reply_markup=InlineKeyboardMarkup(kb))
+    await update.message.reply_text(
+        "Hey there!\nPlease selelct the name of the language that you want to study or select /cancel to abort.\n",
+        reply_markup=InlineKeyboardMarkup(kb),
+    )
     
     return LANG
+
+async def reconfirm_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    if query.data == "yes":
+        update_user(query.from_user.id, configured=0)
+        items = list(cfg['languages'].items())
+        rows = chunk(items, 3)
+        kb = [[InlineKeyboardButton(l[0], callback_data=f'{l[1]}') for l in row] for row in rows]
+        await query.edit_message_text(
+            "Hey there!\nPlease selelct the name of the language that you want to study or select /cancel to abort.\n",
+            reply_markup=InlineKeyboardMarkup(kb),
+        )
+        return LANG
+    await query.edit_message_text("Okay, configuration unchanged.")
+    return ConversationHandler.END
 
 async def lang_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -340,11 +367,11 @@ if __name__ == '__main__':
             LANG: [CallbackQueryHandler(lang_handler)],
             LEVEL: [CallbackQueryHandler(level_handler)],
             TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, time_handler)],
-            COMPLETE: [CallbackQueryHandler(complete_handler)]
-            },
+            COMPLETE: [CallbackQueryHandler(complete_handler)],
+            RECONFIRM: [CallbackQueryHandler(reconfirm_handler)],
+        },
         fallbacks=[CommandHandler("cancel", cancel)],
-        )
-    )
+    ))
 
 
 
