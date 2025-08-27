@@ -1,18 +1,12 @@
 import logging, os
 import sqlite3
 import json
-from pathlib import Path
 from datetime import datetime
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters, ConversationHandler, CallbackQueryHandler
 from telegram.constants import ParseMode
-
-BASE_DIR = Path(__file__).resolve().parent 
-ROOT_DIR = BASE_DIR.parent
-CONFIG_PATH = BASE_DIR / "config.json"
-DATA_DIR = ROOT_DIR / "data"
-DB_PATH = DATA_DIR / "users.db"
+from .paths import CONFIG_PATH, DATA_DIR, DB_PATH
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
