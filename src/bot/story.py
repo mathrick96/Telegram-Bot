@@ -50,11 +50,3 @@ def generate_text(language, level):
     
     #print(json.dumps(response.model_dump(), indent=2))
 
-
-
-
-
-    
-     
-
-print(generate_text('italian', 'C2'))

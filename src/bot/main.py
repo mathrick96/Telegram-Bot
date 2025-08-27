@@ -27,6 +27,9 @@ dummy_user = (000000000, 'english', 'A1', '00:00:00')
 load_dotenv()
 bot_key = os.getenv("TELEGRAM_BOT_KEY")
 
+if not os.path.exists(DATA_DIR):
+    os.makedirs(DATA_DIR)
+
 with open(CONFIG_PATH) as f:
             cfg = json.load(f)
 
