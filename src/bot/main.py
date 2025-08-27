@@ -16,8 +16,7 @@ logging.basicConfig(
 def chunk(lst, n): 
         return [lst[i:i+n] for i in range(0, len(lst), n)]
 
-dummy_user = (000000000, 'english', 'A1', '00:00:00')
-
+dummy_user = (000000000, 'english', 'A1', '00:00:00', 'UTC', None, None)
 load_dotenv()
 bot_key = os.getenv("TELEGRAM_BOT_KEY")
 
@@ -36,8 +35,11 @@ CREATE TABLE IF NOT EXISTS users(
     user_id INTEGER PRIMARY KEY,
     language TEXT,
     level TEXT,
-    delivery_time TEXT,   
-    configured INTEGER   
+    delivery_time TEXT,
+    timezone TEXT,
+    last_sent TEXT,
+    pending_delivery_time TEXT,
+    configured INTEGER 
 )
 """)
 
@@ -53,7 +55,7 @@ def log_all_users():
             conn.row_factory = sqlite3.Row
             cur = conn.cursor()
             cur.execute("""
-                SELECT user_id, language, level, delivery_time, configured
+                SELECT user_id, language, level, delivery_time, timezone, last_sent, pending_delivery_time, configured                
                 FROM users
                 ORDER BY user_id
             """)
@@ -61,8 +63,8 @@ def log_all_users():
             logging.info("DB dump: %d row(s) in users.", len(rows))
             for r in rows:
                 logging.info(
-                    "user_id=%s | language=%s | level=%s | delivery_time=%s | configured=%s",
-                    r["user_id"], r["language"], r["level"], r["delivery_time"], r["configured"]
+                    "user_id=%s | language=%s | level=%s | delivery_time=%s | timezone=%s | last_sent=%s | pending_delivery_time=%s | configured=%s",
+                    r["user_id"], r["language"], r["level"], r["delivery_time"], r["timezone"], r["last_sent"], r["pending_delivery_time"], r["configured"]
                 )
             return len(rows)
     except Exception as e:
@@ -113,8 +115,8 @@ def save_new_user(user_data):
             cur = conn.cursor()
             cur.execute("""
                 INSERT OR IGNORE INTO users
-                (user_id, language, level, delivery_time, configured)
-                VALUES (?, ?, ?, ?, 1)
+                (user_id, language, level, delivery_time, timezone, last_sent, pending_delivery_time, configured)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 1)
             """, user_data)
             conn.commit()
             if cur.rowcount > 0:
@@ -127,7 +129,7 @@ def save_new_user(user_data):
         logging.error(f"Error inserting user_id {user_data[0]}: {e}")
         return False
 
-def update_user(user_id, language=None, level=None, delivery_time=None, configured=None):
+def update_user(user_id, language=None, level=None, delivery_time=None, timezone=None, configured=None):    
     fields, values = [], []
     if language is not None:
         fields.append("language = ?")
@@ -138,6 +140,9 @@ def update_user(user_id, language=None, level=None, delivery_time=None, configur
     if delivery_time is not None:
         fields.append("delivery_time = ?")
         values.append(delivery_time)
+    if timezone is not None:
+        fields.append("timezone = ?")
+        values.append(timezone)
     if configured is not None:
         fields.append("configured = ?")
         values.append(configured)
