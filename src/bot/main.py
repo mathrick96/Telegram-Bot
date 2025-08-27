@@ -1,13 +1,18 @@
 import logging, os
 import sqlite3
 import json
+from pathlib import Path
 from datetime import datetime
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters, ConversationHandler, CallbackQueryHandler
 from telegram.constants import ParseMode
 
-DB_PATH = "/app/src/data/users.db"
+BASE_DIR = Path(__file__).resolve().parent 
+ROOT_DIR = BASE_DIR.parent
+CONFIG_PATH = BASE_DIR / "config.json"
+DATA_DIR = ROOT_DIR / "data"
+DB_PATH = DATA_DIR / "users.db"
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -22,11 +27,11 @@ dummy_user = (000000000, 'english', 'A1', '00:00:00')
 load_dotenv()
 bot_key = os.getenv("TELEGRAM_BOT_KEY")
 
-with open("/app/src/bot/config.json") as f:
+with open(CONFIG_PATH) as f:
             cfg = json.load(f)
 
 # database connection and table creation
-conn = sqlite3.connect('/app/src/data/users.db')
+conn = sqlite3.connect(DB_PATH)
 cursor = conn.cursor()
 
 cursor.execute("""

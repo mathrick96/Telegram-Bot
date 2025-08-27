@@ -2,16 +2,21 @@ import json, random
 from dotenv import load_dotenv
 import os, openai
 from openai import OpenAI
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent 
+ROOT_DIR = BASE_DIR.parent
+CONFIG_PATH = BASE_DIR / "config.json"
 
 load_dotenv()  # reads your .env into os.environ
 openai.api_key = os.getenv("OPENAI_API_KEY")
 client = OpenAI()
 
-with open('/app/src/bot/topics.json', 'r', encoding="utf-8") as f:
-    _TOPICS = json.load(f)
+with open(CONFIG_PATH, 'r', encoding="utf-8") as f:
+    _cfg = json.load(f)
 
 def _random_topic():
-    return random.choice(_TOPICS)
+    return random.choice(_cfg['topics'])
 
 
 
