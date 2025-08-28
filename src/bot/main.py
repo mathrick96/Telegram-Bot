@@ -1,6 +1,7 @@
 import logging, os
 import sqlite3
 import json
+import zoneinfo
 from datetime import datetime
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -17,6 +18,7 @@ def chunk(lst, n):
         return [lst[i:i+n] for i in range(0, len(lst), n)]
 
 dummy_user = (000000000, 'english', 'A1', '00:00:00', 'UTC', None, None)
+ALL_TIMEZONES = sorted(zoneinfo.available_timezones())
 load_dotenv()
 bot_key = os.getenv("TELEGRAM_BOT_KEY")
 
@@ -207,11 +209,13 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     await update.message.reply_text(f"Your id: {id}, your message: {text}")
 
-LANG, LEVEL, TIME, COMPLETE, RECONFIRM = range(5)
+LANG, LEVEL, TIMEZONE, TIME, COMPLETE, RECONFIRM = range(6)
+
 
 async def configure(update: Update, context: ContextTypes.DEFAULT_TYPE):
     "Starts the configuration and asks for the language"
     user_id = update.message.from_user.id
+    context.user_data["skip_timezone"] = False
     _, user = get_user_data(user_id)
     if user and user.get("configured") == 1:
         kb = [[InlineKeyboardButton("Yes", callback_data="yes"),
@@ -237,6 +241,7 @@ async def reconfirm_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     if query.data == "yes":
+        context.user_data["skip_timezone"] = True
         update_user(query.from_user.id, configured=0)
         items = list(cfg['languages'].items())
         rows = chunk(items, 3)
@@ -271,8 +276,48 @@ async def level_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     level = query.data
     context.user_data["level"] = level
     update_user(query.from_user.id, level=level)
-    await query.edit_message_text(text=f"You chose {level}.\nNow select a delivery time in the form HH:MM or type /cancel to abort")
+    if context.user_data.get("skip_timezone"):
+        await query.edit_message_text(
+            text=f"You chose {level}.\nNow select a delivery time in the form HH:MM or type /cancel to abort"
+        )
+        return TIME
+    await query.edit_message_text(
+        text=(
+            f"You chose {level}.\n"
+            "Send part of your timezone name (e.g., 'Berlin' or 'UTC') to search, or type /cancel to abort"
+        )
+    )
+    return TIMEZONE
 
+async def timezone_search_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query_text = update.message.text.strip()
+    exact = next((tz for tz in ALL_TIMEZONES if tz.lower() == query_text.lower()), None)
+    if exact:
+        context.user_data["timezone"] = exact
+        update_user(update.effective_user.id, timezone=exact)
+        await update.message.reply_text(
+            "Timezone set to {}. Now select a delivery time in the form HH:MM or type /cancel to abort".format(exact)
+        )
+        return TIME
+    matches = [tz for tz in ALL_TIMEZONES if query_text.lower() in tz.lower()]
+    if not matches:
+        await update.message.reply_text("No matches found. Please try again or type /cancel to abort")
+        return TIMEZONE
+    matches = matches[:10]
+    rows = chunk(matches, 2)
+    kb = [[InlineKeyboardButton(tz, callback_data=tz) for tz in row] for row in rows]
+    await update.message.reply_text("Select your timezone:", reply_markup=InlineKeyboardMarkup(kb))
+    return TIMEZONE
+
+async def timezone_choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    tz = query.data
+    context.user_data["timezone"] = tz
+    update_user(query.from_user.id, timezone=tz)
+    await query.edit_message_text(
+        text=f"You chose {tz}.\nNow select a delivery time in the form HH:MM or type /cancel to abort"
+    )
     return TIME
 
 async def time_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -373,6 +418,10 @@ if __name__ == '__main__':
         states={
             LANG: [CallbackQueryHandler(lang_handler)],
             LEVEL: [CallbackQueryHandler(level_handler)],
+            TIMEZONE: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, timezone_search_handler),
+                CallbackQueryHandler(timezone_choice_handler),
+            ],
             TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, time_handler)],
             COMPLETE: [CallbackQueryHandler(complete_handler)],
             RECONFIRM: [CallbackQueryHandler(reconfirm_handler)],
