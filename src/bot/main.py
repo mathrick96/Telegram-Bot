@@ -2,12 +2,14 @@ import logging, os
 import sqlite3
 import json
 import zoneinfo
-from datetime import datetime
+from zoneinfo import ZoneInfo
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters, ConversationHandler, CallbackQueryHandler
 from telegram.constants import ParseMode
 from .paths import CONFIG_PATH, DATA_DIR, DB_PATH
+from .story import generate_text
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -131,7 +133,15 @@ def save_new_user(user_data):
         logging.error(f"Error inserting user_id {user_data[0]}: {e}")
         return False
 
-def update_user(user_id, language=None, level=None, delivery_time=None, timezone=None, configured=None):    
+def update_user(
+    user_id,
+    language=None,
+    level=None,
+    delivery_time=None,
+    timezone=None,
+    configured=None,
+    last_sent=None,
+):
     fields, values = [], []
     if language is not None:
         fields.append("language = ?")
@@ -148,6 +158,9 @@ def update_user(user_id, language=None, level=None, delivery_time=None, timezone
     if configured is not None:
         fields.append("configured = ?")
         values.append(configured)
+    if last_sent is not None:
+        fields.append("last_sent = ?")
+        values.append(last_sent)
     if not fields:
         return False  # nothing to update
     values.append(user_id)
@@ -182,6 +195,64 @@ def delete_user(user_id):
     except Exception as e:
         logging.error(f"Error deleting user_id {user_id}: {e}")
         return False
+
+
+######################################################################################
+##############################   SCHEDULING   #######################################
+######################################################################################
+
+def load_all_users():
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM users WHERE configured = 1")
+            return [dict(row) for row in cur.fetchall()]
+    except Exception as e:
+        logging.error(f"Error loading users: {e}")
+        return []
+
+
+def compute_next_run(delivery_time, user_timezone):
+    now = datetime.now(ZoneInfo(user_timezone))
+    hour, minute = map(int, delivery_time.split(":")[:2])
+    run_time = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if run_time <= now:
+        run_time += timedelta(days=1)
+    return run_time
+
+
+def schedule_story_job(job_queue, user):
+    run_time = compute_next_run(user["delivery_time"], user["timezone"])
+    job_queue.run_once(
+        send_story,
+        when=run_time,
+        chat_id=user["user_id"],
+        data={
+            "user_id": user["user_id"],
+            "timezone": user["timezone"],
+            "delivery_time": user["delivery_time"],
+        },
+    )
+
+
+async def send_story(context: ContextTypes.DEFAULT_TYPE):
+    user_id = context.job.data["user_id"]
+    tz = context.job.data["timezone"]
+    _, user = get_user_data(user_id)
+    if not user:
+        return
+    story_text = generate_text(user["language"], user["level"])
+    await context.bot.send_message(chat_id=user_id, text=story_text)
+    local_date = datetime.now(ZoneInfo(tz)).date().isoformat()
+    update_user(user_id, last_sent=local_date)
+    schedule_story_job(context.job_queue, user)
+
+
+def restart_jobs(job_queue):
+    for user in load_all_users():
+        if user.get("delivery_time") and user.get("timezone"):
+            schedule_story_job(job_queue, user)
 
 
 ######################################################################################
@@ -353,6 +424,9 @@ async def complete_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if query.data == "ok":
         update_user(query.from_user.id, configured=1)
+        success, user = get_user_data(query.from_user.id)
+        if success and user.get("delivery_time") and user.get("timezone"):
+            schedule_story_job(context.job_queue, user)
         await query.edit_message_text("Setup complete! Use /help to see all commands.")
     else:  # "cancel"
         await query.edit_message_text("Setup aborted. Run /configure to start over.")
@@ -428,8 +502,5 @@ if __name__ == '__main__':
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     ))
-
-
-
-    
+    restart_jobs(application.job_queue)
     application.run_polling()
