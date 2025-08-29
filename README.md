@@ -22,12 +22,20 @@ remember user preferences and enforce one story per day.
 | TELEGRAM\_BOT\_KEY | Telegram Bot API token             |
 | OPENAI\_API\_KEY   | OpenAI API key for text generation |
 
+
 A `.env` file (used by Docker Compose) can hold these keys:
 
 ```
 TELEGRAM_BOT_KEY=...
 OPENAI_API_KEY=...
 ```
+
+## Environment Variables
+
+The bot expects the following variables in the environment or `.env` file:
+
+* `TELEGRAM_BOT_KEY` – Telegram Bot API token
+* `OPENAI_API_KEY` – OpenAI API key for text generation
 
 ## Quick Start
 
