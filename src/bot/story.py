@@ -1,11 +1,15 @@
-import json, random
+import json, random, logging
 from dotenv import load_dotenv
 import os, openai
 from openai import OpenAI
 from .paths import CONFIG_PATH
 
 load_dotenv()  # reads your .env into os.environ
-openai.api_key = os.getenv("OPENAI_API_KEY")
+api_key = os.getenv("OPENAI_API_KEY")
+if not api_key:
+    logging.critical("OPENAI_API_KEY is not set in environment variables")
+    raise RuntimeError("Missing OPENAI_API_KEY environment variable")
+openai.api_key = api_key
 client = OpenAI()
 
 with open(CONFIG_PATH, 'r', encoding="utf-8") as f:

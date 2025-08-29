@@ -23,6 +23,9 @@ dummy_user = (000000000, 'english', 'A1', '00:00:00', 'UTC', None, None)
 ALL_TIMEZONES = sorted(zoneinfo.available_timezones())
 load_dotenv()
 bot_key = os.getenv("TELEGRAM_BOT_KEY")
+if not bot_key:
+    logging.critical("TELEGRAM_BOT_KEY is not set in environment variables")
+    raise RuntimeError("Missing TELEGRAM_BOT_KEY environment variable")
 
 if not os.path.exists(DATA_DIR):
     os.makedirs(DATA_DIR)
