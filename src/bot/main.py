@@ -240,6 +240,7 @@ def schedule_story_job(job_queue, user):
         send_story,
         when=run_time,
         chat_id=user["user_id"],
+        name=str(user["user_id"]),
         data={
             "user_id": user["user_id"],
             "timezone": user["timezone"],
@@ -300,6 +301,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "3️⃣  The local time you’d like to receive each text"
         ),
         parse_mode=ParseMode.MARKDOWN_V2
+    )
+
+async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    update_user(user_id, configured=0)
+    jobs = context.job_queue.get_jobs_by_name(str(user_id))
+    for job in jobs:
+        job.schedule_removal()
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text="Daily delivery paused. Use /configure to resume.",
     )
 
 async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -527,6 +539,7 @@ if __name__ == '__main__':
 
     # command handlers
     application.add_handler(CommandHandler('start', start))
+    application.add_handler(CommandHandler('stop', stop))
 
     application.add_handler(ConversationHandler(
         entry_points=[CommandHandler("configure", configure)],
