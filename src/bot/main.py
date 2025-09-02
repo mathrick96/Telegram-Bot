@@ -6,20 +6,29 @@ from zoneinfo import ZoneInfo
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters, ConversationHandler, CallbackQueryHandler
+from telegram.ext import (
+    ApplicationBuilder,
+    ContextTypes,
+    CommandHandler,
+    MessageHandler,
+    filters,
+    ConversationHandler,
+    CallbackQueryHandler,
+)
 from telegram.constants import ParseMode
 from .paths import CONFIG_PATH, DATA_DIR, DB_PATH
 from .story import generate_text
 
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
+def chunk(lst, n):
+    """Split a list into chunks of size ``n``."""
+    return [lst[i : i + n] for i in range(0, len(lst), n)]
 
-def chunk(lst, n): 
-        return [lst[i:i+n] for i in range(0, len(lst), n)]
 
-dummy_user = (000000000, 'english', 'A1', '00:00:00', 'UTC', None, None)
+dummy_user = (000000000, "english", "A1", "00:00:00", "UTC", None, None)
+
 ALL_TIMEZONES = sorted(zoneinfo.available_timezones())
 load_dotenv()
 bot_key = os.getenv("TELEGRAM_BOT_KEY")
@@ -34,24 +43,26 @@ if not os.path.exists(DATA_DIR):
     os.makedirs(DATA_DIR)
 
 with open(CONFIG_PATH) as f:
-            cfg = json.load(f)
+    cfg = json.load(f)
 
 # database connection and table creation
 conn = sqlite3.connect(DB_PATH)
 cursor = conn.cursor()
 
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS users(
-    user_id INTEGER PRIMARY KEY,
-    language TEXT,
-    level TEXT,
-    delivery_time TEXT,
-    timezone TEXT,
-    last_sent TEXT,
-    pending_delivery_time TEXT,
-    configured INTEGER 
+cursor.execute(
+    """
+    CREATE TABLE IF NOT EXISTS users(
+        user_id INTEGER PRIMARY KEY,
+        language TEXT,
+        level TEXT,
+        delivery_time TEXT,
+        timezone TEXT,
+        last_sent TEXT,
+        pending_delivery_time TEXT,
+        configured INTEGER 
+    )
+"""
 )
-""")
 
 conn.close()
 
@@ -59,27 +70,38 @@ conn.close()
 ############################   HELPER FUNCTIONS   ####################################
 ######################################################################################
 
+
 def log_all_users():
     try:
         with sqlite3.connect(DB_PATH) as conn:
             conn.row_factory = sqlite3.Row
             cur = conn.cursor()
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT user_id, language, level, delivery_time, timezone, last_sent, pending_delivery_time, configured                
                 FROM users
                 ORDER BY user_id
-            """)
+            """
+            )
             rows = cur.fetchall()
             logging.info("DB dump: %d row(s) in users.", len(rows))
             for r in rows:
                 logging.info(
                     "user_id=%s | language=%s | level=%s | delivery_time=%s | timezone=%s | last_sent=%s | pending_delivery_time=%s | configured=%s",
-                    r["user_id"], r["language"], r["level"], r["delivery_time"], r["timezone"], r["last_sent"], r["pending_delivery_time"], r["configured"]
+                    r["user_id"],
+                    r["language"],
+                    r["level"],
+                    r["delivery_time"],
+                    r["timezone"],
+                    r["last_sent"],
+                    r["pending_delivery_time"],
+                    r["configured"],
                 )
             return len(rows)
     except Exception as e:
         logging.exception("DB dump failed: %s", e)
         return None
+
 
 def get_user_data(user_id):
     try:
@@ -97,16 +119,20 @@ def get_user_data(user_id):
     except Exception as e:
         logging.error(f"Error retrieving user_id {user_id}: {e}")
         return False, None
-    
+
+
 def create_new_user(user_id):
     try:
         with sqlite3.connect(DB_PATH) as conn:
             cur = conn.cursor()
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT OR IGNORE INTO users
                 (user_id, configured)
                 VALUES (?, 0)
-            """, (user_id,))
+            """,
+                (user_id,),
+            )
             conn.commit()
             if cur.rowcount > 0:
                 logging.info(f"Inserted new user_id {user_id} successfully.")
@@ -123,11 +149,14 @@ def save_new_user(user_data):
     try:
         with sqlite3.connect(DB_PATH) as conn:
             cur = conn.cursor()
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT OR IGNORE INTO users
                 (user_id, language, level, delivery_time, timezone, last_sent, pending_delivery_time, configured)
                 VALUES (?, ?, ?, ?, ?, ?, ?, 1)
-            """, user_data)
+            """, 
+                user_data
+            )
             conn.commit()
             if cur.rowcount > 0:
                 logging.info(f"Inserted new user_id {user_data[0]} successfully.")
@@ -138,6 +167,7 @@ def save_new_user(user_data):
     except Exception as e:
         logging.error(f"Error inserting user_id {user_data[0]}: {e}")
         return False
+
 
 def update_user(
     user_id,
@@ -184,12 +214,15 @@ def update_user(
                 logging.info(f"Updated user_id {user_id} successfully.")
                 return True
             else:
-                logging.warning(f"No user found with user_id {user_id}. Update skipped.")
+                logging.warning(
+                    f"No user found with user_id {user_id}. Update skipped."
+                )
                 return False
     except Exception as e:
         logging.error(f"Error updating user_id {user_id}: {e}")
         return False
     
+
 def delete_user(user_id):
     try:
         with sqlite3.connect(DB_PATH) as conn:
@@ -200,7 +233,9 @@ def delete_user(user_id):
                 logging.info(f"Deleted user_id {user_id} successfully.")
                 return True
             else:
-                logging.warning(f"No user found with user_id {user_id}. Deletion skipped.")
+                logging.warning(
+                    f"No user found with user_id {user_id}. Deletion skipped."
+                )
                 return False
     except Exception as e:
         logging.error(f"Error deleting user_id {user_id}: {e}")
@@ -210,6 +245,7 @@ def delete_user(user_id):
 ######################################################################################
 ##############################   SCHEDULING   #######################################
 ######################################################################################
+
 
 def load_all_users():
     try:
@@ -294,7 +330,7 @@ def restart_jobs(job_queue):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text = (
+        text=(
             "👋 Hello and welcome to Daily Language Boost\\!\n"
             "I’ll send you one short, level\\-appropriate text **every day** in the language you choose, plus a few follow\\-up questions to keep you thinking\\.\n"
             "**How to get started**\n"
@@ -303,8 +339,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "2️⃣  Your CEFR level in that language \\(A1–C2\\)\n"
             "3️⃣  The local time you’d like to receive each text"
         ),
-        parse_mode=ParseMode.MARKDOWN_V2
+        parse_mode=ParseMode.MARKDOWN_V2,
     )
+
 
 async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -322,6 +359,7 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     await update.message.reply_text(f"Your id: {id}, your message: {text}")
 
+
 LANG, LEVEL, TIMEZONE, TIME, COMPLETE, RECONFIRM = range(6)
 
 
@@ -331,24 +369,32 @@ async def configure(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["skip_timezone"] = False
     _, user = get_user_data(user_id)
     if user and user.get("configured") == 1:
-        kb = [[InlineKeyboardButton("Yes", callback_data="yes"),
-               InlineKeyboardButton("No", callback_data="no")]]
+        kb = [
+            [
+                InlineKeyboardButton("Yes", callback_data="yes"),
+                InlineKeyboardButton("No", callback_data="no"),
+            ]
+        ]
         await update.message.reply_text(
             "You are already configured. Do you want to reconfigure?",
             reply_markup=InlineKeyboardMarkup(kb),
         )
         return RECONFIRM
     create_new_user(user_id)
-    items = list(cfg['languages'].items())
+    items = list(cfg["languages"].items())
     rows = chunk(items, 3)
-    kb = [[InlineKeyboardButton(l[0], callback_data=f'{l[1]}') for l in row] for row in rows]
-     
+    kb = [
+        [InlineKeyboardButton(l[0], callback_data=f"{l[1]}") for l in row]
+        for row in rows
+    ]
+
     await update.message.reply_text(
         "Hey there!\nPlease selelct the name of the language that you want to study or select /cancel to abort.\n",
         reply_markup=InlineKeyboardMarkup(kb),
     )
-    
+
     return LANG
+
 
 async def reconfirm_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -356,9 +402,12 @@ async def reconfirm_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.data == "yes":
         context.user_data["skip_timezone"] = True
         update_user(query.from_user.id, configured=0)
-        items = list(cfg['languages'].items())
+        items = list(cfg["languages"].items())
         rows = chunk(items, 3)
-        kb = [[InlineKeyboardButton(l[0], callback_data=f'{l[1]}') for l in row] for row in rows]
+        kb = [
+            [InlineKeyboardButton(l[0], callback_data=f"{l[1]}") for l in row]
+            for row in rows
+        ]
         await query.edit_message_text(
             "Hey there!\nPlease selelct the name of the language that you want to study or select /cancel to abort.\n",
             reply_markup=InlineKeyboardMarkup(kb),
@@ -367,19 +416,21 @@ async def reconfirm_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.edit_message_text("Okay, configuration unchanged.")
     return ConversationHandler.END
 
+
 async def lang_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    language = query.data 
+    language = query.data
     context.user_data["language"] = language
     update_user(query.from_user.id, language=language)
-    levels = cfg['cefr_levels']
+    levels = cfg["cefr_levels"]
     rows = chunk(levels, 2)
-    kb = [[InlineKeyboardButton(l, callback_data=f'{l}') for l in row] for row in rows]
+    kb = [[InlineKeyboardButton(l, callback_data=f"{l}") for l in row] for row in rows]
 
-    await query.edit_message_text(text=f"You chose {language}.\nNow select a level or type /cancel to abort",
-                                           reply_markup=InlineKeyboardMarkup(kb))
-    
+    await query.edit_message_text(
+        text=f"You chose {language}.\nNow select a level or type /cancel to abort",
+        reply_markup=InlineKeyboardMarkup(kb),
+    )
     return LEVEL
 
 
@@ -402,6 +453,7 @@ async def level_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return TIMEZONE
 
+
 async def timezone_search_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query_text = update.message.text.strip()
     exact = next((tz for tz in ALL_TIMEZONES if tz.lower() == query_text.lower()), None)
@@ -409,18 +461,30 @@ async def timezone_search_handler(update: Update, context: ContextTypes.DEFAULT_
         context.user_data["timezone"] = exact
         update_user(update.effective_user.id, timezone=exact)
         await update.message.reply_text(
-            "Timezone set to {}. Now select a delivery time in the form HH:MM or type /cancel to abort".format(exact)
+            "Timezone set to {}. Now select a delivery time in the form HH:MM or type /cancel to abort".format(
+                exact
+            )
         )
         return TIME
     matches = [tz for tz in ALL_TIMEZONES if query_text.lower() in tz.lower()]
     if not matches:
-        await update.message.reply_text("No matches found. Please try again or type /cancel to abort")
+        await update.message.reply_text(
+            "No matches found. Please try again or type /cancel to abort"
+        )
         return TIMEZONE
     matches = matches[:10]
     rows = chunk(matches, 2)
-    kb = [[InlineKeyboardButton(tz, callback_data=tz) for tz in row] for row in rows]
-    await update.message.reply_text("Select your timezone:", reply_markup=InlineKeyboardMarkup(kb))
+    kb = [
+        [
+            InlineKeyboardButton("OK", callback_data="ok"),
+            InlineKeyboardButton("CANCEL", callback_data="/cancel"),
+        ]
+    ]
+    await update.message.reply_text(
+        "Select your timezone:", reply_markup=InlineKeyboardMarkup(kb)
+    )
     return TIMEZONE
+
 
 async def timezone_choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -444,10 +508,9 @@ async def time_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             "Please send the time in 24‑hour HH:MM format (e.g., 18:30)."
         )
-        return TIME                     # stay in the same state until valid
+        return TIME
 
     context.user_data["time"] = valid_time
-
 
     await update.message.reply_text(
         "Setup complete!\n"
@@ -455,9 +518,10 @@ async def time_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Level: {context.user_data['level']}\n"
         f"Delivery time: {valid_time}\n"
         "Press OK if you want to confirm the setup, CANCEL if you want to abort.",
-        reply_markup=InlineKeyboardMarkup(kb)
+        reply_markup=InlineKeyboardMarkup(kb),
     )
     return COMPLETE
+
 
 async def complete_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -489,7 +553,6 @@ async def complete_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     return ConversationHandler.END
 
-    
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Setup cancelled.")
@@ -505,16 +568,24 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def insert_dummy_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     saved = save_new_user(dummy_user)
     if saved:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text = ('dummy user saved'))
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id, text=("dummy user saved")
+        )
     else:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text = ('error in saving dummy user'))
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id, text=("error in saving dummy user")
+        )
 
-async def delete_dummy_user(update:Update, context: ContextTypes.DEFAULT_TYPE):
+async def delete_dummy_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     deleted = delete_user(dummy_user[0])
     if deleted:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text = ('dummy user deleted'))
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id, text=("dummy user deleted")
+        )
     else:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text = ('error in deleting dummy user'))
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id, text=("error in deleting dummy user")
+        )
 
 async def log_db_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     n = log_all_users()
@@ -522,6 +593,7 @@ async def log_db_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("DB dump failed. Check server logs.")
     else:
         await update.message.reply_text(f"Logged {n} row(s) to server logs.")
+
 
 async def delete_user_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if ADMIN_ID is None or str(update.effective_user.id) != ADMIN_ID:
@@ -545,42 +617,45 @@ async def delete_user_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"User {target_id} not found")
 
 
-
 ######################################################################################
 ##################################   MAIN    #########################################
 ######################################################################################
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     application = ApplicationBuilder().token(bot_key).build()
 
     # message handler
     #application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message))
 
     # diagnostics
-    application.add_handler(CommandHandler('dummy', insert_dummy_user))
-    application.add_handler(CommandHandler('deldummy', delete_dummy_user))
-    application.add_handler(CommandHandler('logdb', log_db_cmd))
+    application.add_handler(CommandHandler("dummy", insert_dummy_user))
+    application.add_handler(CommandHandler("deldummy", delete_dummy_user))
+    application.add_handler(CommandHandler("logdb", log_db_cmd))
 
     # command handlers
-    application.add_handler(CommandHandler('start', start))
-    application.add_handler(CommandHandler('stop', stop))
-    application.add_handler(CommandHandler('deleteuser', delete_user_cmd))
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("stop", stop))
+    application.add_handler(CommandHandler("deleteuser", delete_user_cmd))
 
-    application.add_handler(ConversationHandler(
-        entry_points=[CommandHandler("configure", configure)],
-        states={
-            LANG: [CallbackQueryHandler(lang_handler)],
-            LEVEL: [CallbackQueryHandler(level_handler)],
-            TIMEZONE: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, timezone_search_handler),
-                CallbackQueryHandler(timezone_choice_handler),
-            ],
-            TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, time_handler)],
-            COMPLETE: [CallbackQueryHandler(complete_handler)],
-            RECONFIRM: [CallbackQueryHandler(reconfirm_handler)],
-        },
-        fallbacks=[CommandHandler("cancel", cancel)],
-    ))
+    application.add_handler(
+        ConversationHandler(
+            entry_points=[CommandHandler("configure", configure)],
+            states={
+                LANG: [CallbackQueryHandler(lang_handler)],
+                LEVEL: [CallbackQueryHandler(level_handler)],
+                TIMEZONE: [
+                    MessageHandler(
+                        filters.TEXT & ~filters.COMMAND, timezone_search_handler
+                    ),
+                    CallbackQueryHandler(timezone_choice_handler),
+                ],
+                TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, time_handler)],
+                COMPLETE: [CallbackQueryHandler(complete_handler)],
+                RECONFIRM: [CallbackQueryHandler(reconfirm_handler)],
+            },
+            fallbacks=[CommandHandler("cancel", cancel)],
+        )
+    )
     restart_jobs(application.job_queue)
     application.run_polling()
