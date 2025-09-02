@@ -1,6 +1,6 @@
 import logging
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from telegram.ext import ContextTypes
@@ -34,10 +34,18 @@ def compute_next_run(delivery_time, user_timezone):
 def schedule_story_job(job_queue, user):
     delivery_time = user.get("pending_delivery_time") or user["delivery_time"]
     run_time = compute_next_run(delivery_time, user["timezone"])
-    tz = ZoneInfo(user["timezone"])
-    today = datetime.now(tz).date()
-    if user.get("last_sent") == today.isoformat() and run_time.date() == today:
-        run_time += timedelta(days=1)
+    if user.get("last_sent"):
+        try:
+            last_sent_utc = datetime.fromisoformat(user["last_sent"]).replace(
+                tzinfo=timezone.utc
+            )
+            last_sent_local = last_sent_utc.astimezone(ZoneInfo(user["timezone"]))
+            min_run_time = last_sent_local + timedelta(hours=24)
+            if run_time < min_run_time:
+                run_time = min_run_time
+        except ValueError:
+            pass
+
     job_queue.run_once(
         send_story,
         when=run_time,
@@ -57,25 +65,35 @@ async def send_story(context: ContextTypes.DEFAULT_TYPE):
     _, user = get_user_data(user_id)
     if not user:
         return
-    tz = user["timezone"]
-    today = datetime.now(ZoneInfo(tz)).date().isoformat()
-    if user.get("last_sent") == today:
-        return
+    tz = ZoneInfo(user["timezone"])
+    now_local = datetime.now(tz)
+    if user.get("last_sent"):
+        try:
+            last_sent_utc = datetime.fromisoformat(user["last_sent"]).replace(
+                tzinfo=timezone.utc
+            )
+            last_sent_local = last_sent_utc.astimezone(tz)
+            if now_local - last_sent_local < timedelta(hours=24):
+                return
+        except ValueError:
+            return
+    
     story_text = await generate_text(user["language"], user["level"])
     await context.bot.send_message(chat_id=user_id, text=story_text)
+    timestamp = datetime.utcnow().isoformat()
     if user.get("pending_delivery_time"):
         delivery_time = user["pending_delivery_time"]
         update_user(
             user_id,
             delivery_time=delivery_time,
             pending_delivery_time=None,
-            last_sent=today,
+            last_sent=timestamp,
         )
         user["delivery_time"] = delivery_time
         user["pending_delivery_time"] = None
     else:
-        update_user(user_id, last_sent=today)
-    user["last_sent"] = today
+        update_user(user_id, last_sent=timestamp)
+    user["last_sent"] = timestamp
     schedule_story_job(context.job_queue, user)
 
 

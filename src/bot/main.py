@@ -17,6 +17,7 @@ from telegram.ext import (
 )
 
 from .paths import DATA_DIR, DB_PATH
+from .db import migrate_last_sent_to_timestamp
 from .handlers import (
     start,
     stop,
@@ -74,7 +75,7 @@ cursor.execute(
 )
 
 conn.close()
-
+migrate_last_sent_to_timestamp()
 
 if __name__ == "__main__":
     application = ApplicationBuilder().token(bot_key).build()

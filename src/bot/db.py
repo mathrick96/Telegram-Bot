@@ -173,3 +173,24 @@ def delete_user(user_id):
     except Exception as e:
         logging.error(f"Error deleting user_id {user_id}: {e}")
         return False
+    
+def migrate_last_sent_to_timestamp():
+    """Ensure all last_sent entries include a time component."""
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            cur = conn.cursor()
+            cur.execute("PRAGMA user_version")
+            version = cur.fetchone()[0]
+            if version < 1:
+                cur.execute(
+                    """
+                    UPDATE users
+                    SET last_sent = last_sent || 'T00:00:00'
+                    WHERE last_sent IS NOT NULL AND length(last_sent) = 10
+                    """
+                )
+                cur.execute("PRAGMA user_version = 1")
+                conn.commit()
+                logging.info("Migrated last_sent values to include timestamps.")
+    except Exception as e:
+        logging.error(f"Error during migration: {e}")
