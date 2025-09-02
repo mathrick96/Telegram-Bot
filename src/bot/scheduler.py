@@ -61,7 +61,7 @@ async def send_story(context: ContextTypes.DEFAULT_TYPE):
     today = datetime.now(ZoneInfo(tz)).date().isoformat()
     if user.get("last_sent") == today:
         return
-    story_text = generate_text(user["language"], user["level"])
+    story_text = await generate_text(user["language"], user["level"])
     await context.bot.send_message(chat_id=user_id, text=story_text)
     if user.get("pending_delivery_time"):
         delivery_time = user["pending_delivery_time"]
