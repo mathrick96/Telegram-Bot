@@ -30,6 +30,7 @@ def chunk(lst, n):
 
 dummy_user = (000000000, "english", "A1", "00:00:00", "UTC", None, None)
 ALL_TIMEZONES = sorted(zoneinfo.available_timezones())
+TIMEZONE_LOOKUP = {tz.lower(): tz for tz in ALL_TIMEZONES}
 ADMIN_ID = os.getenv("ADMIN_ID")
 
 with open(CONFIG_PATH) as f:
@@ -164,7 +165,8 @@ async def level_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def timezone_search_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query_text = update.message.text.strip()
-    exact = next((tz for tz in ALL_TIMEZONES if tz.lower() == query_text.lower()), None)
+    query_lower = query_text.lower()
+    exact = TIMEZONE_LOOKUP.get(query_lower)
     if exact:
         context.user_data["timezone"] = exact
         update_user(update.effective_user.id, timezone=exact)
@@ -174,7 +176,7 @@ async def timezone_search_handler(update: Update, context: ContextTypes.DEFAULT_
             )
         )
         return TIME
-    matches = [tz for tz in ALL_TIMEZONES if query_text.lower() in tz.lower()]
+    matches = [tz for name, tz in TIMEZONE_LOOKUP.items() if query_lower in name]
     if not matches:
         await update.message.reply_text(
             "No matches found. Please try again or type /cancel to abort",
