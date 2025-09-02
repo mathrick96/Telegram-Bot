@@ -144,6 +144,7 @@ def update_user(
     timezone=None,
     configured=None,
     last_sent=None,
+    pending_delivery_time=None,
 ):
     fields, values = [], []
     if language is not None:
@@ -164,6 +165,9 @@ def update_user(
     if last_sent is not None:
         fields.append("last_sent = ?")
         values.append(last_sent)
+    if pending_delivery_time is not None:
+        fields.append("pending_delivery_time = ?")
+        values.append(pending_delivery_time)
     if not fields:
         return False  # nothing to update
     values.append(user_id)
@@ -237,6 +241,7 @@ def schedule_story_job(job_queue, user):
             "delivery_time": user["delivery_time"],
         },
     )
+    return run_time
 
 
 async def send_story(context: ContextTypes.DEFAULT_TYPE):
@@ -408,8 +413,7 @@ async def time_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return TIME                     # stay in the same state until valid
 
     context.user_data["time"] = valid_time
-    update_user(update.effective_user.id,
-                delivery_time=valid_time)
+
 
     await update.message.reply_text(
         "Setup complete!\n"
@@ -426,10 +430,25 @@ async def complete_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     if query.data == "ok":
-        update_user(query.from_user.id, configured=1)
-        success, user = get_user_data(query.from_user.id)
-        if success and user.get("delivery_time") and user.get("timezone"):
-            schedule_story_job(context.job_queue, user)
+        chosen_time = context.user_data.get("time")
+        user_id = query.from_user.id
+        success, user = get_user_data(user_id)
+        if success and user.get("timezone"):
+            tz = user["timezone"]
+            today = datetime.now(ZoneInfo(tz)).date().isoformat()
+            if user.get("last_sent") == today:
+                update_user(user_id, pending_delivery_time=chosen_time, configured=1)
+            else:
+                update_user(user_id, delivery_time=chosen_time, configured=1)
+                user["delivery_time"] = chosen_time
+            success, user = get_user_data(user_id)
+            if success and user.get("delivery_time") and user.get("timezone"):
+                run_time = schedule_story_job(context.job_queue, user)
+                next_time_str = run_time.strftime("%d-%m-%Y %H:%M %Z")
+                await query.edit_message_text(
+                    f"Setup complete! Next story will be delivered at {next_time_str}. Use /help to see all commands."
+                )
+                return ConversationHandler.END
         await query.edit_message_text("Setup complete! Use /help to see all commands.")
     else:  # "cancel"
         await query.edit_message_text("Setup aborted. Run /configure to start over.")

@@ -4,9 +4,9 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-python-telegram-bot = "*"
 python-dotenv = "*"
 openai = "*"
+python-telegram-bot = {extras = ["job-queue"], version = "*"}
 
 [dev-packages]
 
