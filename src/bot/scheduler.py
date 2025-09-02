@@ -41,10 +41,15 @@ def schedule_story_job(job_queue, user):
             )
             last_sent_local = last_sent_utc.astimezone(ZoneInfo(user["timezone"]))
             min_run_time = last_sent_local + timedelta(hours=24)
-            if run_time < min_run_time:
-                run_time = min_run_time
+            while run_time < min_run_time:
+                run_time += timedelta(days=1)
         except ValueError:
             pass
+
+    # Remove any existing scheduled jobs for this user before scheduling a new one
+    for job in job_queue.get_jobs_by_name(str(user["user_id"])):
+        job.schedule_removal()
+
 
     job_queue.run_once(
         send_story,

@@ -245,11 +245,22 @@ async def complete_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if success and user.get("timezone"):
             tz = user["timezone"]
             today = datetime.now(ZoneInfo(tz)).date().isoformat()
-            if user.get("last_sent") == today:
+
+            last_sent_str = user.get("last_sent")
+            if last_sent_str:
+                last_sent_date = datetime.fromisoformat(last_sent_str).date().isoformat()
+            else:
+                last_sent_date = None
+
+            if last_sent_date == today:
                 update_user(user_id, pending_delivery_time=chosen_time, configured=1)
             else:
-                update_user(user_id, delivery_time=chosen_time, configured=1)
-                user["delivery_time"] = chosen_time
+                update_user(
+                    user_id,
+                    delivery_time=chosen_time,
+                    pending_delivery_time=None,
+                    configured=1,
+                )
             success, user = get_user_data(user_id)
             if success and user.get("delivery_time") and user.get("timezone"):
                 run_time = schedule_story_job(context.job_queue, user)
