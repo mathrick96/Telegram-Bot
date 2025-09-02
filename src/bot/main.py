@@ -230,7 +230,12 @@ def compute_next_run(delivery_time, user_timezone):
 
 
 def schedule_story_job(job_queue, user):
-    run_time = compute_next_run(user["delivery_time"], user["timezone"])
+    delivery_time = user.get("pending_delivery_time") or user["delivery_time"]
+    run_time = compute_next_run(delivery_time, user["timezone"])
+    tz = ZoneInfo(user["timezone"])
+    today = datetime.now(tz).date()
+    if user.get("last_sent") == today.isoformat() and run_time.date() == today:
+        run_time += timedelta(days=1)
     job_queue.run_once(
         send_story,
         when=run_time,
@@ -238,7 +243,7 @@ def schedule_story_job(job_queue, user):
         data={
             "user_id": user["user_id"],
             "timezone": user["timezone"],
-            "delivery_time": user["delivery_time"],
+            "delivery_time": delivery_time,
         },
     )
     return run_time
@@ -246,14 +251,28 @@ def schedule_story_job(job_queue, user):
 
 async def send_story(context: ContextTypes.DEFAULT_TYPE):
     user_id = context.job.data["user_id"]
-    tz = context.job.data["timezone"]
     _, user = get_user_data(user_id)
     if not user:
         return
+    tz = user["timezone"]
+    today = datetime.now(ZoneInfo(tz)).date().isoformat()
+    if user.get("last_sent") == today:
+        return
     story_text = generate_text(user["language"], user["level"])
     await context.bot.send_message(chat_id=user_id, text=story_text)
-    local_date = datetime.now(ZoneInfo(tz)).date().isoformat()
-    update_user(user_id, last_sent=local_date)
+    if user.get("pending_delivery_time"):
+        delivery_time = user["pending_delivery_time"]
+        update_user(
+            user_id,
+            delivery_time=delivery_time,
+            pending_delivery_time=None,
+            last_sent=today,
+        )
+        user["delivery_time"] = delivery_time
+        user["pending_delivery_time"] = None
+    else:
+        update_user(user_id, last_sent=today)
+    user["last_sent"] = today
     schedule_story_job(context.job_queue, user)
 
 
