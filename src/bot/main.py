@@ -27,6 +27,9 @@ if not bot_key:
     logging.critical("TELEGRAM_BOT_KEY is not set in environment variables")
     raise RuntimeError("Missing TELEGRAM_BOT_KEY environment variable")
 
+ADMIN_ID = os.getenv("ADMIN_ID")
+
+
 if not os.path.exists(DATA_DIR):
     os.makedirs(DATA_DIR)
 
@@ -520,6 +523,28 @@ async def log_db_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text(f"Logged {n} row(s) to server logs.")
 
+async def delete_user_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if ADMIN_ID is None or str(update.effective_user.id) != ADMIN_ID:
+        await update.message.reply_text("Unauthorized")
+        return
+    if not context.args:
+        await update.message.reply_text("Usage: /deleteuser <user_id>")
+        return
+    try:
+        target_id = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text("Invalid user id")
+        return
+    deleted = delete_user(target_id)
+    jobs = context.job_queue.get_jobs_by_name(str(target_id))
+    for job in jobs:
+        job.schedule_removal()
+    if deleted:
+        await update.message.reply_text(f"User {target_id} deleted")
+    else:
+        await update.message.reply_text(f"User {target_id} not found")
+
+
 
 ######################################################################################
 ##################################   MAIN    #########################################
@@ -540,6 +565,7 @@ if __name__ == '__main__':
     # command handlers
     application.add_handler(CommandHandler('start', start))
     application.add_handler(CommandHandler('stop', stop))
+    application.add_handler(CommandHandler('deleteuser', delete_user_cmd))
 
     application.add_handler(ConversationHandler(
         entry_points=[CommandHandler("configure", configure)],
