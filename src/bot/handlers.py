@@ -74,8 +74,8 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def configure(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Starts the configuration and asks for the language"""
     user_id = update.message.from_user.id
-    context.user_data["skip_timezone"] = False
     _, user = get_user_data(user_id)
+    context.user_data["skip_timezone"] = bool(user and user.get("timezone"))
     if user and user.get("configured") == 1:
         kb = [
             [
@@ -154,7 +154,11 @@ async def level_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     context.user_data["level"] = level
     update_user(query.from_user.id, level=level)
-    if context.user_data.get("skip_timezone"):
+    skip_tz = context.user_data.get("skip_timezone")
+    if skip_tz is None:
+        success, user = get_user_data(query.from_user.id)
+        skip_tz = bool(user and user.get("timezone")) if success else False
+    if skip_tz:
         await query.edit_message_text(
             text=f"You chose {level}.\nNow select a delivery time in the form HH:MM or type /cancel to abort"
         )
