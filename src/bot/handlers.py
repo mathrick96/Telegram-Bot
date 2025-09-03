@@ -30,7 +30,6 @@ def chunk(lst, n):
 
 dummy_user = (000000000, "english", "A1", "00:00:00", "UTC", None, None)
 ALL_TIMEZONES = sorted(zoneinfo.available_timezones())
-TIMEZONE_LOOKUP = {tz.lower(): tz for tz in ALL_TIMEZONES}
 ADMIN_ID = os.getenv("ADMIN_ID")
 
 with open(CONFIG_PATH) as f:
@@ -128,8 +127,11 @@ async def reconfirm_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def lang_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
     language = query.data
+    if language not in cfg["languages"].values():
+        await query.answer("Please use the buttons")
+        return LANG
+    await query.answer()
     context.user_data["language"] = language
     update_user(query.from_user.id, language=language)
     levels = cfg["cefr_levels"]
@@ -145,8 +147,11 @@ async def lang_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def level_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
     level = query.data
+    if level not in cfg["cefr_levels"]:
+        await query.answer("Please use the buttons")
+        return LEVEL
+    await query.answer()
     context.user_data["level"] = level
     update_user(query.from_user.id, level=level)
     if context.user_data.get("skip_timezone"):
@@ -165,8 +170,7 @@ async def level_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def timezone_search_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query_text = update.message.text.strip()
-    query_lower = query_text.lower()
-    exact = TIMEZONE_LOOKUP.get(query_lower)
+    exact = next((tz for tz in ALL_TIMEZONES if tz.lower() == query_text.lower()), None)
     if exact:
         context.user_data["timezone"] = exact
         update_user(update.effective_user.id, timezone=exact)
@@ -176,7 +180,7 @@ async def timezone_search_handler(update: Update, context: ContextTypes.DEFAULT_
             )
         )
         return TIME
-    matches = [tz for name, tz in TIMEZONE_LOOKUP.items() if query_lower in name]
+    matches = [tz for tz in ALL_TIMEZONES if query_text.lower() in tz.lower()]
     if not matches:
         await update.message.reply_text(
             "No matches found. Please try again or type /cancel to abort",
@@ -184,12 +188,8 @@ async def timezone_search_handler(update: Update, context: ContextTypes.DEFAULT_
         return TIMEZONE
     matches = matches[:10]
     rows = chunk(matches, 2)
-    kb = [
-        [
-            InlineKeyboardButton("OK", callback_data="ok"),
-            InlineKeyboardButton("CANCEL", callback_data="/cancel"),
-        ]
-    ]
+    kb = [[InlineKeyboardButton(tz, callback_data=tz) for tz in row] for row in rows]
+    kb.append([InlineKeyboardButton("CANCEL", callback_data="/cancel")])
     await update.message.reply_text(
         "Select your timezone:", reply_markup=InlineKeyboardMarkup(kb)
     )
@@ -200,6 +200,9 @@ async def timezone_choice_handler(update: Update, context: ContextTypes.DEFAULT_
     query = update.callback_query
     await query.answer()
     tz = query.data
+    if tz == "/cancel":
+        await query.edit_message_text("Setup cancelled.")
+        return ConversationHandler.END
     context.user_data["timezone"] = tz
     update_user(query.from_user.id, timezone=tz)
     await query.edit_message_text(

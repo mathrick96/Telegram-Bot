@@ -41,6 +41,7 @@ from .handlers import (
     TIME,
     COMPLETE,
     RECONFIRM,
+    cfg,
 )
 from .scheduler import restart_jobs
 
@@ -77,6 +78,11 @@ cursor.execute(
 conn.close()
 migrate_last_sent_to_timestamp()
 
+
+language_pattern = f"^({'|'.join(cfg['languages'].values())})$"
+level_pattern = f"^({'|'.join(cfg['cefr_levels'])})$"
+
+
 if __name__ == "__main__":
     application = ApplicationBuilder().token(bot_key).build()
 
@@ -97,8 +103,8 @@ if __name__ == "__main__":
         ConversationHandler(
             entry_points=[CommandHandler("configure", configure)],
             states={
-                LANG: [CallbackQueryHandler(lang_handler)],
-                LEVEL: [CallbackQueryHandler(level_handler)],
+                LANG: [CallbackQueryHandler(lang_handler, pattern=language_pattern)],
+                LEVEL: [CallbackQueryHandler(level_handler, pattern=level_pattern)],
                 TIMEZONE: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, timezone_search_handler),
                     CallbackQueryHandler(timezone_choice_handler),
