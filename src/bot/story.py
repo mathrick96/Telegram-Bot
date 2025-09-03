@@ -34,7 +34,7 @@ async def generate_text(language, level):
             model="gpt-5-mini",
             instructions='You are a language-learning assistant. Your task is to generate a medium-length text in a specified target language, at a given CEFR level, on a given topic.  ' \
             '1. Role: You are an expert at adapting texts to CEFR levels.  ' \
-            '2. Instructions: Write a text (about 150–200 words) in the requested language, using vocabulary and structures appropriate to the specified CEFR level.  ' \
+            '2. Instructions: Write a text (about 100 words) in the requested language, using vocabulary and structures appropriate to the specified CEFR level.  ' \
             '3. Vocabulary level: Use mostly words and grammar aligned with that level. Sprinkle in 3–5 slightly more advanced words or idioms (e.g. one level above) to stretch the learner.  ' \
             '4. Context: Provide the topic so the text is focused. Keep an informal tone unless specified by the user. ' \
             '5. Output only the text, nothing else: no explanations, no filler words, no list of vocabulary at the end',

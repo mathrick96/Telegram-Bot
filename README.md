@@ -1,52 +1,46 @@
-# LangBot – Daily Language-Learning Bot for Telegram
+# LangBot – Daily AI‑Generated Language Stories for Telegram
 
-LangBot sends each user a short, AI-generated story in their chosen language every day.
-The bot is built with the Telegram Bot API, OpenAI, and a lightweight SQLite store to
-remember user preferences and enforce one story per day.
+LangBot delivers one short story per user each day in the language and proficiency level they specify. It uses the **Telegram Bot API** for interaction, **OpenAI** for text generation, and a lightweight **SQLite database** to store user preferences and prevent duplicate deliveries within the same day.
+
+---
 
 ## Features
 
-* Daily stories at a scheduled hour – configurable per user.
-* Fixed timezone per user – collected at first setup and used to schedule deliveries.
-* Daylight-saving aware – schedule calculations rely on standard IANA timezone data.
-* One story per day – delivery tracker prevents multiple sends in the same local day.
-* Deferred schedule changes – time edits made after today’s story has been delivered take effect starting tomorrow.
-* Language & level selection – any language in config.json plus CEFR levels A1–C2.
-* Optional full translation & vocabulary list (roadmap).
+* Daily story scheduling with user-defined delivery time and timezone awareness, including daylight‑saving adjustments
+* Language and CEFR level selection drawn from a configurable list in `config.json`
+* Deferred schedule changes applied the day after a story has already been sent
+* One story per 24 hours enforced by the scheduler logic
+* Planned enhancements such as translations, vocabulary lists, and cloud deployment scripts (not yet implemented)
+
+---
 
 ## Requirements
 
-| Component          | Purpose                            |
-| ------------------ | ---------------------------------- |
-| Python 3.12        | runtime (slim Docker base image)   |
-| TELEGRAM\_BOT\_KEY | Telegram Bot API token             |
-| OPENAI\_API\_KEY   | OpenAI API key for text generation |
+* Python **3.12** runtime
+* **Telegram Bot API token** via `TELEGRAM_BOT_KEY`
+* **OpenAI API key** via `OPENAI_API_KEY`
 
+Store these keys in a `.env` file or export them in your environment before running the bot.
 
-A `.env` file (used by Docker Compose) can hold these keys:
+### Environment Variables
 
-```
-TELEGRAM_BOT_KEY=...
-OPENAI_API_KEY=...
-```
+The application expects the following variables:
 
-## Environment Variables
+* `TELEGRAM_BOT_KEY` – Telegram bot token loaded at startup
+* `OPENAI_API_KEY` – OpenAI key used to initialize the async client
+* `ADMIN_ID` – (optional) Telegram user ID permitted to run `/deleteuser` for maintenance
 
-The bot expects the following variables in the environment or `.env` file:
-
-* `TELEGRAM_BOT_KEY` – Telegram Bot API token
-* `OPENAI_API_KEY` – OpenAI API key for text generation
+---
 
 ## Quick Start
 
 ### Docker (recommended)
 
 ```bash
-cd Telegram-Bot
 docker compose up -d --build
 ```
 
-The container runs `python -m bot.main` and mounts `src/` for live code editing.
+The container runs `python -m bot.main` and mounts `src/` for live editing.
 
 ### Local Python
 
@@ -55,54 +49,58 @@ pipenv install
 pipenv run python -m bot.main
 ```
 
-## Project Layout
+---
+
+## Project Structure
 
 ```
 src/
   bot/
     main.py       # Telegram handlers, scheduling, DB access
     story.py      # OpenAI requests for story generation
-    paths.py      # helper paths (config & data)
-    config.json   # list of topics, CEFR levels, and languages
+    scheduler.py  # job-queue logic
+    handlers.py   # conversation flow and commands
+    db.py         # SQLite utility functions
+    paths.py      # common paths (config & data)
+    config.json   # topics, languages, CEFR levels
 data/
-  users.db        # SQLite database created at runtime
+  users.db        # created at runtime
 ```
+
+---
 
 ## Configuration Flow
 
-* `/start` – greets user and triggers setup.
-* `/help` – list available commands.
-* User selects:
+* `/start` – introduction and setup guidance
+* `/configure` – interactive setup for language, level, timezone, and daily delivery time
+* `/help` – list of available commands
+* `/stop` – pause daily delivery
+* `/cancel` – abort current setup process
 
-  * Language (emoji-annotated list from config.json)
-  * CEFR level
-  * Timezone (IANA name, stored permanently)
-  * Daily delivery hour
-* Bot schedules the next story using the chosen timezone.
+---
 
-## Delivery Logic
+## How It Works
 
-* At send time, the bot checks whether `last_sent` equals today’s date
-  (in the user’s timezone). If so, it skips sending.
-* After a successful send:
+1. Users choose a language, CEFR level, timezone, and delivery time.
+2. The scheduler computes the next send time, ensuring at least 24 hours between stories and adjusting for timezone changes.
+3. At send time, the bot generates a story via OpenAI and records the delivery timestamp in the database to prevent duplicates.
+4. On bot restart, all configured jobs are reloaded to preserve scheduling.
 
-  * `last_sent` is updated.
-  * Any `pending_delivery_time` is applied for tomorrow’s job.
-* The JobQueue is rebuilt on restart so scheduled deliveries persist.
+---
 
-## Development Tips
+## Development Notes
 
-* `src/bot/main.py` contains helper `log_all_users()` to inspect the
-  SQLite table.
-* Use the `docker compose logs -f` command or standard logging to trace
-  interactions.
-* Topics and language lists can be extended by editing `config.json`.
+* Database and configuration utilities reside under `src/bot/`.
+* `log_all_users()` and related diagnostics can assist with debugging or inspecting the SQLite data store.
+* The codebase is fully containerized, making it straightforward to deploy to a cloud environment when desired.
+
+---
 
 ## Roadmap
 
 * Vocabulary CSV export
-* User-triggered full translations
+* User-triggered translations
 * Cloud deployment scripts
 * Unit tests and CI pipeline
 
-Happy language learning!
+---
