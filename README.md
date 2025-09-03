@@ -71,6 +71,7 @@ data/
 ## Configuration Flow
 
 * `/start` – greets user and triggers setup.
+* `/help` – list available commands.
 * User selects:
 
   * Language (emoji-annotated list from config.json)

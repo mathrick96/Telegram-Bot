@@ -64,6 +64,20 @@ async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text="Daily delivery paused. Use /configure to resume.",
     )
 
+async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=(
+            "Available commands:\n"
+            "/start - Introduction and setup instructions\n"
+            "/configure - Configure language, level, timezone, and delivery time\n"
+            "/stop - Pause daily delivery\n"
+            "/cancel - Cancel the current setup\n"
+            "/help - Show this help message"
+        ),
+    )
+
+
 
 async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     id = update.message.from_user.id

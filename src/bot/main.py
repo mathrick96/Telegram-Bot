@@ -21,7 +21,7 @@ from .db import migrate_last_sent_to_timestamp
 from .handlers import (
     start,
     stop,
-    message,
+    help,
     configure,
     reconfirm_handler,
     lang_handler,
@@ -35,6 +35,7 @@ from .handlers import (
     delete_dummy_user,
     log_db_cmd,
     delete_user_cmd,
+
     LANG,
     LEVEL,
     TIMEZONE,
@@ -94,6 +95,7 @@ if __name__ == "__main__":
 
     # command handlers
     application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("help", help))
     application.add_handler(CommandHandler("stop", stop))
     application.add_handler(CommandHandler("deleteuser", delete_user_cmd))
     # message handler (disabled)
