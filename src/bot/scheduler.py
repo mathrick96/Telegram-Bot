@@ -23,9 +23,8 @@ def load_all_users():
 
 
 def schedule_story_job(job_queue, user):
-    daily_time = time(
-        hour=user["delivery_hour"], minute=0, tzinfo=ZoneInfo(user["timezone"])
-    )
+    delivery_hour = user["delivery_hour"]
+    daily_time = time(hour=delivery_hour, minute=0, tzinfo=ZoneInfo(user["timezone"]))
     # Remove any existing scheduled jobs for this user before scheduling a new one
     for job in job_queue.get_jobs_by_name(str(user["user_id"])):
         job.schedule_removal()

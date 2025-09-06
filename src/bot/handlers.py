@@ -166,9 +166,9 @@ async def time_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Please send an hour as a number between 0 and 23.",
         )
         return TIME
-    valid_hour = int(text)
-    context.user_data["hour"] = valid_hour
-    valid_time = f"{valid_hour:02}:00"
+    delivery_hour = int(text)
+    context.user_data["delivery_hour"] = delivery_hour
+    valid_time = f"{delivery_hour:02}:00"
 
     await update.message.reply_text(
         "Setup complete!\n"
@@ -187,9 +187,9 @@ async def complete_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     if query.data == "ok":
-        chosen_hour = context.user_data.get("hour")
+        delivery_hour = context.user_data.get("delivery_hour")
         user_id = query.from_user.id
-        update_user(user_id, delivery_hour=chosen_hour, configured=1)
+        update_user(user_id, delivery_hour=delivery_hour, configured=1)
         success, user = get_user_data(user_id)
         if success and user.get("delivery_hour") is not None and user.get("timezone"):
             run_time = schedule_story_job(context.job_queue, user)
