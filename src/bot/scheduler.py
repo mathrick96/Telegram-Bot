@@ -31,14 +31,14 @@ def schedule_story_job(job_queue, user):
         job.schedule_removal()
 
 
-    job_queue.run_daily(
+    job = job_queue.run_daily(
         send_story,
         time=daily_time,
         chat_id=user["user_id"],
         name=str(user["user_id"]),
         data={"user_id": user["user_id"]},
     )
-
+    return job.next_t
 
 async def send_story(context: ContextTypes.DEFAULT_TYPE):
     user_id = context.job.data["user_id"]
