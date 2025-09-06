@@ -162,30 +162,34 @@ async def level_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.edit_message_text(
         text=(
             f"You chose {level}.\n"
-            "Send your timezone in 'Region/City' format (e.g., 'Europe/Berlin') or type /cancel to abort"
-        )
+            "Type part of your timezone (e.g., 'Europe' or 'Berlin').\n"
+            "I'll show matching options, or type /cancel to abort"        )
     )
     return TIME
 
 
 async def time_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle timezone first, then hour selection."""
+    """Handle timezone search and hour selection."""
     text = update.message.text.strip()
-    kb = [[InlineKeyboardButton('OK', callback_data='ok'), InlineKeyboardButton('CANCEL', callback_data='/cancel')]]
 
     if "timezone" not in context.user_data:
-        if text not in ALL_TIMEZONES:
+        matches = [tz for tz in ALL_TIMEZONES if text.lower() in tz.lower()]
+        if not matches:
             await update.message.reply_text(
-                "Please send a valid timezone like 'Europe/Berlin' or type /cancel to abort",
+                "No matching timezones found. Try again or type /cancel to abort",
             )
             return TIME
-        context.user_data["timezone"] = text
-        context.user_data["timezone_changed"] = True
-        update_user(update.effective_user.id, timezone=text)
+        kb = [
+            [InlineKeyboardButton(tz, callback_data=tz) for tz in row]
+            for row in chunk(matches[:9], 3)
+        ]
+
         await update.message.reply_text(
-            "Timezone set. Now send the hour (0-23) for daily delivery or type /cancel to abort",
+            "Select your timezone from the options below or type again to narrow your search",
+            reply_markup=InlineKeyboardMarkup(kb),
         )
         return TIME
+    
     
     if "delivery_hour" not in context.user_data:
         if not text.isdigit() or not 0 <= int(text) <= 23:
@@ -198,6 +202,8 @@ async def time_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["delivery_hour_changed"] = True
         valid_time = f"{delivery_hour:02}:00"
 
+
+        kb = [[InlineKeyboardButton('OK', callback_data='ok'), InlineKeyboardButton('CANCEL', callback_data='/cancel')]]
         await update.message.reply_text(
             "Setup complete!\n"
             f"Language: {context.user_data['language']}\n"
@@ -211,6 +217,22 @@ async def time_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Should not reach here if both timezone and delivery hour are present
     return COMPLETE
+
+async def timezone_button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    tz = query.data
+    if tz not in ALL_TIMEZONES:
+        await query.answer("Invalid selection")
+        return TIME
+    await query.answer()
+    context.user_data["timezone"] = tz
+    context.user_data["timezone_changed"] = True
+    update_user(query.from_user.id, timezone=tz)
+    await query.edit_message_text(
+        f"Timezone set to {tz}. Now send the hour (0-23) for daily delivery or type /cancel to abort"
+    )
+    return TIME
+
 
 
 async def complete_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):

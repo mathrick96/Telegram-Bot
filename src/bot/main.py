@@ -26,6 +26,7 @@ from .handlers import (
     lang_handler,
     level_handler,
     time_handler,
+    timezone_button_handler,
     complete_handler,
     cancel,
     insert_dummy_user,
@@ -103,7 +104,10 @@ if __name__ == "__main__":
             states={
                 LANG: [CallbackQueryHandler(lang_handler, pattern=language_pattern)],
                 LEVEL: [CallbackQueryHandler(level_handler, pattern=level_pattern)],
-                TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, time_handler)],
+                TIME: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, time_handler),
+                    CallbackQueryHandler(timezone_button_handler),
+                ],
                 COMPLETE: [CallbackQueryHandler(complete_handler)],
                 },
             fallbacks=[CommandHandler("cancel", cancel)],
