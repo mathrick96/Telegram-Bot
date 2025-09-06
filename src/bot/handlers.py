@@ -86,7 +86,18 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def configure(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Starts the configuration and asks for the language"""
     user_id = update.message.from_user.id
+    context.user_data.clear()
     create_new_user(user_id)
+    success, user = get_user_data(user_id)
+    context.user_data["timezone_changed"] = False
+    context.user_data["delivery_hour_changed"] = False
+    if success and user.get("configured"):
+        tz = user.get("timezone")
+        hour = user.get("delivery_hour")
+        if tz:
+            context.user_data["timezone"] = tz
+        if hour is not None:
+            context.user_data["delivery_hour"] = hour
     items = list(cfg["languages"].items())
     rows = chunk(items, 3)
     kb = [
@@ -134,6 +145,20 @@ async def level_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     context.user_data["level"] = level
     update_user(query.from_user.id, level=level)
+    if "timezone" in context.user_data and "delivery_hour" in context.user_data:
+        delivery_hour = context.user_data["delivery_hour"]
+        valid_time = f"{delivery_hour:02}:00"
+        kb = [[InlineKeyboardButton('OK', callback_data='ok'), InlineKeyboardButton('CANCEL', callback_data='/cancel')]]
+        await query.edit_message_text(
+            "Setup complete!\n"
+            f"Language: {context.user_data['language']}\n"
+            f"Level: {context.user_data['level']}\n"
+            f"Timezone: {context.user_data['timezone']}\n"
+            f"Delivery time: {valid_time}\n"
+            "Press OK if you want to confirm the setup, CANCEL if you want to abort.",
+            reply_markup=InlineKeyboardMarkup(kb),
+        )
+        return COMPLETE
     await query.edit_message_text(
         text=(
             f"You chose {level}.\n"
@@ -155,30 +180,36 @@ async def time_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return TIME
         context.user_data["timezone"] = text
+        context.user_data["timezone_changed"] = True
         update_user(update.effective_user.id, timezone=text)
         await update.message.reply_text(
             "Timezone set. Now send the hour (0-23) for daily delivery or type /cancel to abort",
-                            )
-        return TIME
-
-    if not text.isdigit() or not 0 <= int(text) <= 23:
-        await update.message.reply_text(
-            "Please send an hour as a number between 0 and 23.",
         )
         return TIME
-    delivery_hour = int(text)
-    context.user_data["delivery_hour"] = delivery_hour
-    valid_time = f"{delivery_hour:02}:00"
+    
+    if "delivery_hour" not in context.user_data:
+        if not text.isdigit() or not 0 <= int(text) <= 23:
+            await update.message.reply_text(
+                "Please send an hour as a number between 0 and 23.",
+            )
+            return TIME
+        delivery_hour = int(text)
+        context.user_data["delivery_hour"] = delivery_hour
+        context.user_data["delivery_hour_changed"] = True
+        valid_time = f"{delivery_hour:02}:00"
 
-    await update.message.reply_text(
-        "Setup complete!\n"
-        f"Language: {context.user_data['language']}\n"
-        f"Level: {context.user_data['level']}\n"
-        f"Timezone: {context.user_data['timezone']}\n"
-        f"Delivery time: {valid_time}\n"
-        "Press OK if you want to confirm the setup, CANCEL if you want to abort.",
-        reply_markup=InlineKeyboardMarkup(kb),
-    )
+        await update.message.reply_text(
+            "Setup complete!\n"
+            f"Language: {context.user_data['language']}\n"
+            f"Level: {context.user_data['level']}\n"
+            f"Timezone: {context.user_data['timezone']}\n"
+            f"Delivery time: {valid_time}\n"
+            "Press OK if you want to confirm the setup, CANCEL if you want to abort.",
+            reply_markup=InlineKeyboardMarkup(kb),
+        )
+        return COMPLETE
+
+    # Should not reach here if both timezone and delivery hour are present
     return COMPLETE
 
 
@@ -187,9 +218,17 @@ async def complete_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     if query.data == "ok":
-        delivery_hour = context.user_data.get("delivery_hour")
         user_id = query.from_user.id
-        update_user(user_id, delivery_hour=delivery_hour, configured=1)
+        update_kwargs = {
+            "configured": 1,
+            "language": context.user_data.get("language"),
+            "level": context.user_data.get("level"),
+        }
+        if context.user_data.get("timezone_changed"):
+            update_kwargs["timezone"] = context.user_data.get("timezone")
+        if context.user_data.get("delivery_hour_changed"):
+            update_kwargs["delivery_hour"] = context.user_data.get("delivery_hour")
+        update_user(user_id, **update_kwargs)
         success, user = get_user_data(user_id)
         if success and user.get("delivery_hour") is not None and user.get("timezone"):
             run_time = schedule_story_job(context.job_queue, user)
