@@ -109,7 +109,6 @@ def update_user(
     timezone=None,
     configured=None,
     last_sent=None,
-    pending_delivery_time=None,
 ):
     fields, values = [], []
     if language is not None:
