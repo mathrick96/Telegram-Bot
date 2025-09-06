@@ -15,7 +15,7 @@ def load_all_users():
         with sqlite3.connect(DB_PATH) as conn:
             conn.row_factory = sqlite3.Row
             cur = conn.cursor()
-            cur.execute("SELECT * FROM users WHERE configured = 1")
+            cur.execute("SELECT * FROM users WHERE configured = 1 AND paused = 0")
             return [dict(row) for row in cur.fetchall()]
     except Exception as e:
         logging.error(f"Error loading users: {e}")

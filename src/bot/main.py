@@ -17,7 +17,7 @@ from telegram.ext import (
 )
 
 from .paths import DATA_DIR, DB_PATH
-from .db import migrate_last_sent_to_timestamp
+from .db import migrate_last_sent_to_timestamp, ensure_paused_column
 from .handlers import (
     start,
     stop,
@@ -65,13 +65,15 @@ cursor.execute(
         delivery_hour INTEGER,
         timezone TEXT,
         last_sent TEXT,
-        configured INTEGER
+        configured INTEGER,
+        paused INTEGER DEFAULT 0
     )
     """
 )
 
 conn.close()
 migrate_last_sent_to_timestamp()
+ensure_paused_column()
 
 
 language_pattern = f"^({'|'.join(cfg['languages'].values())})$"

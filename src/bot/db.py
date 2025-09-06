@@ -11,7 +11,7 @@ def log_all_users():
             cur = conn.cursor()
             cur.execute(
                 """
-                SELECT user_id, language, level, delivery_hour, timezone, last_sent, configured
+                SELECT user_id, language, level, delivery_hour, timezone, last_sent, configured, paused
                 FROM users
                 ORDER BY user_id
                 """
@@ -20,14 +20,14 @@ def log_all_users():
             logging.info("DB dump: %d row(s) in users.", len(rows))
             for r in rows:
                 logging.info(
-                    "user_id=%s | language=%s | level=%s | delivery_hour=%s | timezone=%s | last_sent=%s | configured=%s",
-                    r["user_id"],
+                    "user_id=%s | language=%s | level=%s | delivery_hour=%s | timezone=%s | last_sent=%s | configured=%s | paused=%s",                    r["user_id"],
                     r["language"],
                     r["level"],
                     r["delivery_hour"],
                     r["timezone"],
                     r["last_sent"],
                     r["configured"],
+                    r.get("paused"),
                 )
             return len(rows)
     except Exception as e:
@@ -60,8 +60,8 @@ def create_new_user(user_id):
             cur.execute(
                 """
                 INSERT OR IGNORE INTO users
-                (user_id, configured)
-                VALUES (?, 0)
+                (user_id, configured, paused)
+                VALUES (?, 0, 0)
                 """,
                 (user_id,),
             )
@@ -84,8 +84,8 @@ def save_new_user(user_data):
             cur.execute(
                 """
                 INSERT OR IGNORE INTO users
-                (user_id, language, level, delivery_hour, timezone, last_sent, configured)
-                VALUES (?, ?, ?, ?, ?, ?, 1)
+                (user_id, language, level, delivery_hour, timezone, last_sent, configured, paused)
+                VALUES (?, ?, ?, ?, ?, ?, 1, 0)
                 """,
                 user_data,
             )
@@ -109,6 +109,7 @@ def update_user(
     timezone=None,
     configured=None,
     last_sent=None,
+    paused=None,
 ):
     fields, values = [], []
     if language is not None:
@@ -129,6 +130,9 @@ def update_user(
     if last_sent is not None:
         fields.append("last_sent = ?")
         values.append(last_sent)
+    if paused is not None:
+        fields.append("paused = ?")
+        values.append(paused)
     if not fields:
         return False  # nothing to update
     values.append(user_id)
@@ -189,3 +193,20 @@ def migrate_last_sent_to_timestamp():
                 logging.info("Migrated last_sent values to include timestamps.")
     except Exception as e:
         logging.error(f"Error during migration: {e}")
+
+
+def ensure_paused_column():
+    """Ensure the users table has a paused column."""
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            cur = conn.cursor()
+            cur.execute("PRAGMA table_info(users)")
+            columns = [row[1] for row in cur.fetchall()]
+            if "paused" not in columns:
+                cur.execute(
+                    "ALTER TABLE users ADD COLUMN paused INTEGER DEFAULT 0"
+                )
+                conn.commit()
+                logging.info("Added paused column to users table.")
+    except Exception as e:
+        logging.error(f"Error ensuring paused column: {e}")

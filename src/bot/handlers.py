@@ -53,7 +53,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    update_user(user_id, configured=0)
+    update_user(user_id, paused=1)
     jobs = context.job_queue.get_jobs_by_name(str(user_id))
     for job in jobs:
         job.schedule_removal()
@@ -223,6 +223,7 @@ async def complete_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "configured": 1,
             "language": context.user_data.get("language"),
             "level": context.user_data.get("level"),
+            "paused": 0,
         }
         if context.user_data.get("timezone_changed"):
             update_kwargs["timezone"] = context.user_data.get("timezone")
