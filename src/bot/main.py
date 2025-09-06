@@ -23,11 +23,8 @@ from .handlers import (
     stop,
     help,
     configure,
-    reconfirm_handler,
     lang_handler,
     level_handler,
-    timezone_search_handler,
-    timezone_choice_handler,
     time_handler,
     complete_handler,
     cancel,
@@ -38,10 +35,8 @@ from .handlers import (
 
     LANG,
     LEVEL,
-    TIMEZONE,
     TIME,
     COMPLETE,
-    RECONFIRM,
     cfg,
 )
 from .scheduler import restart_jobs
@@ -107,14 +102,9 @@ if __name__ == "__main__":
             states={
                 LANG: [CallbackQueryHandler(lang_handler, pattern=language_pattern)],
                 LEVEL: [CallbackQueryHandler(level_handler, pattern=level_pattern)],
-                TIMEZONE: [
-                    MessageHandler(filters.TEXT & ~filters.COMMAND, timezone_search_handler),
-                    CallbackQueryHandler(timezone_choice_handler),
-                ],
                 TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, time_handler)],
                 COMPLETE: [CallbackQueryHandler(complete_handler)],
-                RECONFIRM: [CallbackQueryHandler(reconfirm_handler)],
-            },
+                },
             fallbacks=[CommandHandler("cancel", cancel)],
         )
     )

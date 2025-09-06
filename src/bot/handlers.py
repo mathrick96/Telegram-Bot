@@ -1,7 +1,6 @@
 import os
 import json
 import zoneinfo
-from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -20,8 +19,7 @@ from .db import (
 from .scheduler import schedule_story_job
 
 
-LANG, LEVEL, TIMEZONE, TIME, COMPLETE, RECONFIRM = range(6)
-
+LANG, LEVEL, TIME, COMPLETE = range(4)
 
 def chunk(lst, n):
     """Split a list into chunks of size ``n``."""
@@ -88,20 +86,6 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def configure(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Starts the configuration and asks for the language"""
     user_id = update.message.from_user.id
-    _, user = get_user_data(user_id)
-    context.user_data["skip_timezone"] = bool(user and user.get("timezone"))
-    if user and user.get("configured") == 1:
-        kb = [
-            [
-                InlineKeyboardButton("Yes", callback_data="yes"),
-                InlineKeyboardButton("No", callback_data="no"),
-            ]
-        ]
-        await update.message.reply_text(
-            "You are already configured. Do you want to reconfigure?",
-            reply_markup=InlineKeyboardMarkup(kb),
-        )
-        return RECONFIRM
     create_new_user(user_id)
     items = list(cfg["languages"].items())
     rows = chunk(items, 3)
@@ -118,25 +102,7 @@ async def configure(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return LANG
 
 
-async def reconfirm_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    if query.data == "yes":
-        context.user_data["skip_timezone"] = True
-        update_user(query.from_user.id, configured=0)
-        items = list(cfg["languages"].items())
-        rows = chunk(items, 3)
-        kb = [
-            [InlineKeyboardButton(l[0], callback_data=f"{l[1]}") for l in row]
-            for row in rows
-        ]
-        await query.edit_message_text(
-            "Hey there!\nPlease selelct the name of the language that you want to study or select /cancel to abort.\n",
-            reply_markup=InlineKeyboardMarkup(kb),
-        )
-        return LANG
-    await query.edit_message_text("Okay, configuration unchanged.")
-    return ConversationHandler.END
+
 
 
 async def lang_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -168,86 +134,46 @@ async def level_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     context.user_data["level"] = level
     update_user(query.from_user.id, level=level)
-    skip_tz = context.user_data.get("skip_timezone")
-    if skip_tz is None:
-        success, user = get_user_data(query.from_user.id)
-        skip_tz = bool(user and user.get("timezone")) if success else False
-    if skip_tz:
-        await query.edit_message_text(
-            text=f"You chose {level}.\nNow select a delivery time in the form HH:MM or type /cancel to abort"
-        )
-        return TIME
     await query.edit_message_text(
         text=(
             f"You chose {level}.\n"
-            "Send part of your timezone name (e.g., 'Berlin' or 'UTC') to search, or type /cancel to abort"
+            "Send your timezone in 'Region/City' format (e.g., 'Europe/Berlin') or type /cancel to abort"
         )
-    )
-    return TIMEZONE
-
-
-async def timezone_search_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query_text = update.message.text.strip()
-    exact = next((tz for tz in ALL_TIMEZONES if tz.lower() == query_text.lower()), None)
-    if exact:
-        context.user_data["timezone"] = exact
-        update_user(update.effective_user.id, timezone=exact)
-        await update.message.reply_text(
-            "Timezone set to {}. Now select a delivery time in the form HH:MM or type /cancel to abort".format(
-                exact
-            )
-        )
-        return TIME
-    matches = [tz for tz in ALL_TIMEZONES if query_text.lower() in tz.lower()]
-    if not matches:
-        await update.message.reply_text(
-            "No matches found. Please try again or type /cancel to abort",
-        )
-        return TIMEZONE
-    matches = matches[:10]
-    rows = chunk(matches, 2)
-    kb = [[InlineKeyboardButton(tz, callback_data=tz) for tz in row] for row in rows]
-    kb.append([InlineKeyboardButton("CANCEL", callback_data="/cancel")])
-    await update.message.reply_text(
-        "Select your timezone:", reply_markup=InlineKeyboardMarkup(kb)
-    )
-    return TIMEZONE
-
-
-async def timezone_choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    tz = query.data
-    if tz == "/cancel":
-        await query.edit_message_text("Setup cancelled.")
-        return ConversationHandler.END
-    context.user_data["timezone"] = tz
-    update_user(query.from_user.id, timezone=tz)
-    await query.edit_message_text(
-        text=f"You chose {tz}.\nNow select a delivery time in the form HH:MM or type /cancel to abort",
     )
     return TIME
 
 
 async def time_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Receive a HH:MM string and finalize configuration."""
-    time_text = update.message.text.strip()
+    """Handle timezone first, then hour selection."""
+    text = update.message.text.strip()
     kb = [[InlineKeyboardButton('OK', callback_data='ok'), InlineKeyboardButton('CANCEL', callback_data='/cancel')]]
-    # Validate time format
-    try:
-        valid_time = datetime.strptime(time_text, "%H:%M").strftime("%H:%M")
-    except ValueError:
+
+    if "timezone" not in context.user_data:
+        if text not in ALL_TIMEZONES:
+            await update.message.reply_text(
+                "Please send a valid timezone like 'Europe/Berlin' or type /cancel to abort",
+            )
+            return TIME
+        context.user_data["timezone"] = text
+        update_user(update.effective_user.id, timezone=text)
         await update.message.reply_text(
-            "Please send the time in 24‑hour HH:MM format (e.g., 18:30).",
-        )
+            "Timezone set. Now send the hour (0-23) for daily delivery or type /cancel to abort",
+                            )
         return TIME
 
+    if not text.isdigit() or not 0 <= int(text) <= 23:
+        await update.message.reply_text(
+            "Please send an hour as a number between 0 and 23.",
+        )
+        return TIME
+    valid_time = f"{int(text):02}:00"
     context.user_data["time"] = valid_time
 
     await update.message.reply_text(
         "Setup complete!\n"
         f"Language: {context.user_data['language']}\n"
         f"Level: {context.user_data['level']}\n"
+        f"Timezone: {context.user_data['timezone']}\n"
         f"Delivery time: {valid_time}\n"
         "Press OK if you want to confirm the setup, CANCEL if you want to abort.",
         reply_markup=InlineKeyboardMarkup(kb),
@@ -262,35 +188,16 @@ async def complete_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.data == "ok":
         chosen_time = context.user_data.get("time")
         user_id = query.from_user.id
+        update_user(user_id, delivery_time=chosen_time, configured=1)
         success, user = get_user_data(user_id)
-        if success and user.get("timezone"):
-            tz = user["timezone"]
-            today = datetime.now(ZoneInfo(tz)).date().isoformat()
-
-            last_sent_str = user.get("last_sent")
-            if last_sent_str:
-                last_sent_date = datetime.fromisoformat(last_sent_str).date().isoformat()
-            else:
-                last_sent_date = None
-
-            if last_sent_date == today:
-                update_user(user_id, pending_delivery_time=chosen_time, configured=1)
-            else:
-                update_user(
-                    user_id,
-                    delivery_time=chosen_time,
-                    pending_delivery_time=None,
-                    configured=1,
-                )
-            success, user = get_user_data(user_id)
-            if success and user.get("delivery_time") and user.get("timezone"):
-                run_time = schedule_story_job(context.job_queue, user)
-                run_time_local = run_time.astimezone(ZoneInfo(user["timezone"]))
-                next_time_str = run_time_local.strftime("%d-%m-%Y %H:%M %Z")
-                await query.edit_message_text(
-                    f"Setup complete! Next story will be delivered at {next_time_str}. Use /help to see all commands."
-                )
-                return ConversationHandler.END
+        if success and user.get("delivery_time") and user.get("timezone"):
+            run_time = schedule_story_job(context.job_queue, user)
+            run_time_local = run_time.astimezone(ZoneInfo(user["timezone"]))
+            next_time_str = run_time_local.strftime("%d-%m-%Y %H:%M %Z")
+            await query.edit_message_text(
+                f"Setup complete! Next story will be delivered at {next_time_str}. Use /help to see all commands."
+            )
+            return ConversationHandler.END
         await query.edit_message_text("Setup complete! Use /help to see all commands.")
     else:  # "cancel"
         await query.edit_message_text("Setup aborted. Run /configure to start over.")
