@@ -26,7 +26,7 @@ def chunk(lst, n):
     return [lst[i : i + n] for i in range(0, len(lst), n)]
 
 
-dummy_user = (000000000, "english", "A1", "00:00:00", "UTC", None, None)
+dummy_user = (000000000, "english", "A1", 0, "UTC", None)
 ALL_TIMEZONES = sorted(zoneinfo.available_timezones())
 ADMIN_ID = os.getenv("ADMIN_ID")
 
@@ -166,8 +166,9 @@ async def time_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Please send an hour as a number between 0 and 23.",
         )
         return TIME
-    valid_time = f"{int(text):02}:00"
-    context.user_data["time"] = valid_time
+    valid_hour = int(text)
+    context.user_data["hour"] = valid_hour
+    valid_time = f"{valid_hour:02}:00"
 
     await update.message.reply_text(
         "Setup complete!\n"
@@ -186,11 +187,11 @@ async def complete_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     if query.data == "ok":
-        chosen_time = context.user_data.get("time")
+        chosen_hour = context.user_data.get("hour")
         user_id = query.from_user.id
-        update_user(user_id, delivery_time=chosen_time, configured=1)
+        update_user(user_id, delivery_hour=chosen_hour, configured=1)
         success, user = get_user_data(user_id)
-        if success and user.get("delivery_time") and user.get("timezone"):
+        if success and user.get("delivery_hour") is not None and user.get("timezone"):
             run_time = schedule_story_job(context.job_queue, user)
             run_time_local = run_time.astimezone(ZoneInfo(user["timezone"]))
             next_time_str = run_time_local.strftime("%d-%m-%Y %H:%M %Z")

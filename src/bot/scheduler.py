@@ -23,9 +23,9 @@ def load_all_users():
 
 
 def schedule_story_job(job_queue, user):
-    hour, minute = map(int, user["delivery_time"].split(":")[:2])
-    daily_time = time(hour=hour, minute=minute, tzinfo=ZoneInfo(user["timezone"]))
-
+    daily_time = time(
+        hour=user["delivery_hour"], minute=0, tzinfo=ZoneInfo(user["timezone"])
+    )
     # Remove any existing scheduled jobs for this user before scheduling a new one
     for job in job_queue.get_jobs_by_name(str(user["user_id"])):
         job.schedule_removal()
@@ -54,5 +54,5 @@ async def send_story(context: ContextTypes.DEFAULT_TYPE):
 
 def restart_jobs(job_queue):
     for user in load_all_users():
-        if user.get("delivery_time") and user.get("timezone"):
+        if user.get("delivery_hour") is not None and user.get("timezone"):
             schedule_story_job(job_queue, user)

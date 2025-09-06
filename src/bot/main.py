@@ -62,10 +62,9 @@ cursor.execute(
         user_id INTEGER PRIMARY KEY,
         language TEXT,
         level TEXT,
-        delivery_time TEXT,
+        delivery_hour INTEGER,
         timezone TEXT,
         last_sent TEXT,
-        pending_delivery_time TEXT,
         configured INTEGER
     )
     """

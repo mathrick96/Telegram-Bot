@@ -11,7 +11,7 @@ def log_all_users():
             cur = conn.cursor()
             cur.execute(
                 """
-                SELECT user_id, language, level, delivery_time, timezone, last_sent, pending_delivery_time, configured
+                SELECT user_id, language, level, delivery_hour, timezone, last_sent, configured
                 FROM users
                 ORDER BY user_id
                 """
@@ -20,14 +20,13 @@ def log_all_users():
             logging.info("DB dump: %d row(s) in users.", len(rows))
             for r in rows:
                 logging.info(
-                    "user_id=%s | language=%s | level=%s | delivery_time=%s | timezone=%s | last_sent=%s | pending_delivery_time=%s | configured=%s",
+                    "user_id=%s | language=%s | level=%s | delivery_hour=%s | timezone=%s | last_sent=%s | configured=%s",
                     r["user_id"],
                     r["language"],
                     r["level"],
-                    r["delivery_time"],
+                    r["delivery_hour"],
                     r["timezone"],
                     r["last_sent"],
-                    r["pending_delivery_time"],
                     r["configured"],
                 )
             return len(rows)
@@ -85,8 +84,8 @@ def save_new_user(user_data):
             cur.execute(
                 """
                 INSERT OR IGNORE INTO users
-                (user_id, language, level, delivery_time, timezone, last_sent, pending_delivery_time, configured)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+                (user_id, language, level, delivery_hour, timezone, last_sent, configured)
+                VALUES (?, ?, ?, ?, ?, ?, 1)
                 """,
                 user_data,
             )
@@ -106,7 +105,7 @@ def update_user(
     user_id,
     language=None,
     level=None,
-    delivery_time=None,
+    delivery_hour=None,
     timezone=None,
     configured=None,
     last_sent=None,
@@ -119,9 +118,9 @@ def update_user(
     if level is not None:
         fields.append("level = ?")
         values.append(level)
-    if delivery_time is not None:
-        fields.append("delivery_time = ?")
-        values.append(delivery_time)
+    if delivery_hour is not None:
+        fields.append("delivery_hour = ?")
+        values.append(delivery_hour)
     if timezone is not None:
         fields.append("timezone = ?")
         values.append(timezone)
@@ -131,9 +130,6 @@ def update_user(
     if last_sent is not None:
         fields.append("last_sent = ?")
         values.append(last_sent)
-    if pending_delivery_time is not None:
-        fields.append("pending_delivery_time = ?")
-        values.append(pending_delivery_time)
     if not fields:
         return False  # nothing to update
     values.append(user_id)
