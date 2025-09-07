@@ -106,7 +106,7 @@ async def configure(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
 
     await update.message.reply_text(
-        "Hey there!\nPlease selelct the name of the language that you want to study or select /cancel to abort.\n",
+        "Hey there!\nPlease select the name of the language that you want to study or select /cancel to abort.\n",
         reply_markup=InlineKeyboardMarkup(kb),
     )
 
