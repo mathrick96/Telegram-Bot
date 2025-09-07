@@ -1,6 +1,6 @@
 import logging
 import sqlite3
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from telegram.ext import ContextTypes
@@ -24,7 +24,8 @@ def load_all_users():
 
 def schedule_story_job(job_queue, user):
     delivery_hour = user["delivery_hour"]
-    daily_time = time(hour=delivery_hour, minute=0, tzinfo=ZoneInfo(user["timezone"]))
+    tz = ZoneInfo(user["timezone"])
+    daily_time = time(hour=delivery_hour, minute=0, tzinfo=tz)
     # Remove any existing scheduled jobs for this user before scheduling a new one
     for job in job_queue.get_jobs_by_name(str(user["user_id"])):
         job.schedule_removal()
@@ -37,7 +38,13 @@ def schedule_story_job(job_queue, user):
         name=str(user["user_id"]),
         data={"user_id": user["user_id"]},
     )
-    return job.next_t
+    next_run_time = getattr(job, "next_run_time", None)
+    if next_run_time is None:
+        now = datetime.now(tz)
+        next_run_time = datetime.combine(now.date(), daily_time)
+        if next_run_time <= now:
+            next_run_time += timedelta(days=1)
+    return next_run_time
 
 async def send_story(context: ContextTypes.DEFAULT_TYPE):
     user_id = context.job.data["user_id"]

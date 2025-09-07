@@ -255,12 +255,15 @@ async def complete_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         success, user = get_user_data(user_id)
         if success and user.get("delivery_hour") is not None and user.get("timezone"):
             run_time = schedule_story_job(context.job_queue, user)
-            run_time_local = run_time.astimezone(ZoneInfo(user["timezone"]))
-            next_time_str = run_time_local.strftime("%d-%m-%Y %H:%M %Z")
-            await query.edit_message_text(
-                f"Setup complete! Next story will be delivered at {next_time_str}. Use /help to see all commands."
-            )
-            return ConversationHandler.END
+            if run_time is not None:
+                if run_time.tzinfo is None:
+                    run_time = run_time.replace(tzinfo=ZoneInfo("UTC"))
+                run_time_local = run_time.astimezone(ZoneInfo(user["timezone"]))
+                next_time_str = run_time_local.strftime("%d-%m-%Y %H:%M %Z")
+                await query.edit_message_text(
+                    f"Setup complete! Next story will be delivered at {next_time_str}. Use /help to see all commands."
+                )
+                return ConversationHandler.END
         await query.edit_message_text("Setup complete! Use /help to see all commands.")
     else:  # "cancel"
         await query.edit_message_text("Setup aborted. Run /configure to start over.")
