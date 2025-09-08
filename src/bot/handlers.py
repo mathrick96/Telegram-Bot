@@ -98,13 +98,21 @@ async def configure(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     success, user = get_user_data(user_id)
     context.user_data["timezone_changed"] = False
     context.user_data["delivery_hour_changed"] = False
+    note = ""
     if success and user.get("configured"):
         tz = user.get("timezone")
         hour = user.get("delivery_hour")
-        if tz:
+        if tz and hour is not None:
             context.user_data["timezone"] = tz
-        if hour is not None:
             context.user_data["delivery_hour"] = hour
+            note = (
+                "Timezone and delivery time are locked and cannot be changed.\n"
+            )
+        else:
+            if tz:
+                context.user_data["timezone"] = tz
+            if hour is not None:
+                context.user_data["delivery_hour"] = hour
     items = list(cfg["languages"].items())
     rows = chunk(items, 3)
     kb = [
@@ -113,7 +121,7 @@ async def configure(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     ]
 
     await update.message.reply_text(
-        "Hey there!\nPlease select the name of the language that you want to study or select /cancel to abort.\n",
+        f"{note}Hey there!\nPlease select the name of the language that you want to study or select /cancel to abort.\n",
         reply_markup=InlineKeyboardMarkup(kb),
     )
 
@@ -163,7 +171,7 @@ async def level_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
             f"Level: {context.user_data['level']}\n"
             f"Timezone: {context.user_data['timezone']}\n"
             f"Delivery time: {valid_time}\n"
-            "Press OK if you want to confirm the setup, CANCEL if you want to abort.",
+            "Press OK if you want to confirm the setup, CANCEL if you want to abort. Timezone and delivery time can't be changed later.",
             reply_markup=InlineKeyboardMarkup(kb),
         )
         return COMPLETE
@@ -218,7 +226,7 @@ async def time_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
             f"Level: {context.user_data['level']}\n"
             f"Timezone: {context.user_data['timezone']}\n"
             f"Delivery time: {valid_time}\n"
-            "Press OK if you want to confirm the setup, CANCEL if you want to abort.",
+            "Press OK if you want to confirm the setup, CANCEL if you want to abort. Timezone and delivery time can't be changed later.",
             reply_markup=InlineKeyboardMarkup(kb),
         )
         return COMPLETE
