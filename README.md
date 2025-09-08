@@ -8,7 +8,8 @@ LangBot delivers one short story per user each day in the language and proficien
 
 * Daily story scheduling with user-defined delivery time and timezone awareness, including daylight‑saving adjustments
 * Language and CEFR level selection drawn from a configurable list in `config.json`
-* Deferred schedule changes applied the day after a story has already been sent
+* Configuration updates trigger immediate rescheduling for upcoming deliveries
+* Users can pause daily stories with `/stop` and resume through `/configure`
 * One story per 24 hours enforced by the scheduler logic
 * Planned enhancements such as translations, vocabulary lists, and cloud deployment scripts (not yet implemented)
 
@@ -32,6 +33,14 @@ The application expects the following variables:
 ---
 
 ## Quick Start
+
+Before running the bot, copy the example environment file and add your API keys:
+
+```bash
+cp .env.example .env
+# edit .env to include TELEGRAM_BOT_KEY and OPENAI_API_KEY
+```
+
 
 ### Docker (recommended)
 
@@ -66,7 +75,7 @@ pre-commit run --all-files
 ```
 src/
   bot/
-    main.py       # Telegram handlers, scheduling, DB access
+    main.py       # application entry point and setup
     story.py      # OpenAI requests for story generation
     scheduler.py  # job-queue logic
     handlers.py   # conversation flow and commands
@@ -86,6 +95,13 @@ data/
 * `/help` – list of available commands
 * `/stop` – pause daily delivery
 * `/cancel` – abort current setup process
+
+### Admin Commands
+
+The following commands are restricted to the Telegram user ID specified in `ADMIN_ID`:
+
+* `/deleteuser <user_id>` – remove a user from the database. Requires `ADMIN_ID`.
+* `/logdb` – log the contents of the SQLite database for debugging.
 
 ---
 
