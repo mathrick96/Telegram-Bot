@@ -20,7 +20,7 @@ LangBot delivers one short story per user each day in the language and proficien
 * **Telegram Bot API token** via `TELEGRAM_BOT_KEY`
 * **OpenAI API key** via `OPENAI_API_KEY`
 
-Store these keys in a `.env` file or export them in your environment before running the bot.
+Copy `.env.example` to `.env` and fill in these values (and optional `ADMIN_ID`), or export them in your environment before running the bot.
 
 ### Environment Variables
 
