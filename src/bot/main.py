@@ -4,8 +4,7 @@ import sqlite3
 
 from dotenv import load_dotenv
 
-# Load environment variables before importing modules that rely on them
-load_dotenv()
+
 
 from telegram.ext import (
     ApplicationBuilder,
@@ -29,8 +28,6 @@ from .handlers import (
     timezone_button_handler,
     complete_handler,
     cancel,
-    insert_dummy_user,
-    delete_dummy_user,
     log_db_cmd,
     delete_user_cmd,
 
@@ -41,6 +38,9 @@ from .handlers import (
     cfg,
 )
 from .scheduler import restart_jobs
+
+# Load environment variables before importing modules that rely on them
+load_dotenv()
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -86,8 +86,6 @@ if __name__ == "__main__":
 
 
     # diagnostics
-    application.add_handler(CommandHandler("dummy", insert_dummy_user))
-    application.add_handler(CommandHandler("deldummy", delete_dummy_user))
     application.add_handler(CommandHandler("logdb", log_db_cmd))
 
     # command handlers

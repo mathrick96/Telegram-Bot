@@ -1,10 +1,12 @@
 import logging
 import sqlite3
+from typing import Any, Dict, Optional, Tuple, List
 
 from .paths import DB_PATH
 
 
-def log_all_users():
+def log_all_users() -> Optional[int]:
+    """Log all user records and return the number of rows."""
     try:
         with sqlite3.connect(DB_PATH) as conn:
             conn.row_factory = sqlite3.Row
@@ -27,7 +29,7 @@ def log_all_users():
                     r["timezone"],
                     r["last_sent"],
                     r["configured"],
-                    r.get("paused"),
+                    r["paused"],
                 )
             return len(rows)
     except Exception as e:
@@ -35,7 +37,8 @@ def log_all_users():
         return None
 
 
-def get_user_data(user_id):
+def get_user_data(user_id: int) -> Tuple[bool, Optional[Dict[str, Any]]]:
+    """Retrieve a user record by ``user_id``."""
     try:
         with sqlite3.connect(DB_PATH) as conn:
             conn.row_factory = sqlite3.Row
@@ -53,7 +56,8 @@ def get_user_data(user_id):
         return False, None
 
 
-def create_new_user(user_id):
+def create_new_user(user_id: int) -> bool:
+    """Insert a new user with default values if absent."""
     try:
         with sqlite3.connect(DB_PATH) as conn:
             cur = conn.cursor()
@@ -77,7 +81,8 @@ def create_new_user(user_id):
         return False
 
 
-def save_new_user(user_data):
+def save_new_user(user_data: Tuple[Any, ...]) -> bool:
+    """Insert a fully configured user record."""
     try:
         with sqlite3.connect(DB_PATH) as conn:
             cur = conn.cursor()
@@ -102,16 +107,19 @@ def save_new_user(user_data):
 
 
 def update_user(
-    user_id,
-    language=None,
-    level=None,
-    delivery_hour=None,
-    timezone=None,
-    configured=None,
-    last_sent=None,
-    paused=None,
-):
-    fields, values = [], []
+    user_id: int,
+    language: Optional[str] = None,
+    level: Optional[str] = None,
+    delivery_hour: Optional[int] = None,
+    timezone: Optional[str] = None,
+    configured: Optional[int] = None,
+    last_sent: Optional[str] = None,
+    paused: Optional[int] = None,
+) -> bool:
+    """Update fields of a user record identified by ``user_id``."""
+
+    fields: List[str] = []
+    values: List[Any] = []
     if language is not None:
         fields.append("language = ?")
         values.append(language)
@@ -155,7 +163,8 @@ def update_user(
         return False
 
 
-def delete_user(user_id):
+def delete_user(user_id: int) -> bool:
+    """Remove a user record by ``user_id``."""
     try:
         with sqlite3.connect(DB_PATH) as conn:
             cur = conn.cursor()
@@ -173,7 +182,7 @@ def delete_user(user_id):
         logging.error(f"Error deleting user_id {user_id}: {e}")
         return False
     
-def migrate_last_sent_to_timestamp():
+def migrate_last_sent_to_timestamp() -> None:
     """Ensure all last_sent entries include a time component."""
     try:
         with sqlite3.connect(DB_PATH) as conn:
@@ -195,7 +204,7 @@ def migrate_last_sent_to_timestamp():
         logging.error(f"Error during migration: {e}")
 
 
-def ensure_paused_column():
+def ensure_paused_column() -> None:
     """Ensure the users table has a paused column."""
     try:
         with sqlite3.connect(DB_PATH) as conn:

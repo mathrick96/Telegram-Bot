@@ -48,6 +48,17 @@ The container runs `python -m bot.main` and mounts `src/` for live editing.
 pipenv install
 pipenv run python -m bot.main
 ```
+### Code Quality
+
+This project uses [pre-commit](https://pre-commit.com/) to run **Black**, **Ruff**, and **MyPy** on every commit.
+Install the hooks after setting up the environment:
+
+```bash
+pipenv install --dev
+pre-commit install
+pre-commit run --all-files
+```
+
 
 ---
 
@@ -104,3 +115,7 @@ data/
 * Unit tests and CI pipeline
 
 ---
+
+## License
+
+This project is licensed under the terms of the [MIT License](LICENSE).

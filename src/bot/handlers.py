@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes, ConversationHandler
+from typing import List, TypeVar
 
 from .paths import CONFIG_PATH
 from .db import (
@@ -21,12 +22,13 @@ from .scheduler import schedule_story_job
 
 LANG, LEVEL, TIME, COMPLETE = range(4)
 
-def chunk(lst, n):
-    """Split a list into chunks of size ``n``."""
+T = TypeVar("T")
+
+def chunk(lst: List[T], n: int) -> List[List[T]]:
+    """Split ``lst`` into sublists of length ``n``."""
     return [lst[i : i + n] for i in range(0, len(lst), n)]
 
 
-dummy_user = (000000000, "english", "A1", 0, "UTC", None)
 ALL_TIMEZONES = sorted(zoneinfo.available_timezones())
 ADMIN_ID = os.getenv("ADMIN_ID")
 
@@ -34,7 +36,8 @@ with open(CONFIG_PATH) as f:
     cfg = json.load(f)
 
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Send a welcome message and setup instructions."""
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=(
@@ -51,7 +54,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Pause daily story delivery for the user."""
     user_id = update.effective_user.id
     update_user(user_id, paused=1)
     jobs = context.job_queue.get_jobs_by_name(str(user_id))
@@ -62,7 +66,8 @@ async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text="Daily delivery paused. Use /configure to resume.",
     )
 
-async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Display available bot commands."""
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=(
@@ -77,14 +82,16 @@ async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
-async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    id = update.message.from_user.id
+async def message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Echo the sender's ID and message."""
+
+    user_id = update.message.from_user.id
+
     text = update.message.text
-    await update.message.reply_text(f"Your id: {id}, your message: {text}")
+    await update.message.reply_text(f"Your id: {user_id}, your message: {text}")
 
-
-async def configure(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Starts the configuration and asks for the language"""
+async def configure(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Start the configuration flow by asking for the target language."""
     user_id = update.message.from_user.id
     context.user_data.clear()
     create_new_user(user_id)
@@ -101,7 +108,7 @@ async def configure(update: Update, context: ContextTypes.DEFAULT_TYPE):
     items = list(cfg["languages"].items())
     rows = chunk(items, 3)
     kb = [
-        [InlineKeyboardButton(l[0], callback_data=f"{l[1]}") for l in row]
+        [InlineKeyboardButton(lang[0], callback_data=f"{lang[1]}") for lang in row]
         for row in rows
     ]
 
@@ -116,7 +123,8 @@ async def configure(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
-async def lang_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def lang_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Store the chosen language and prompt for proficiency level."""
     query = update.callback_query
     language = query.data
     if language not in cfg["languages"].values():
@@ -127,8 +135,7 @@ async def lang_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     update_user(query.from_user.id, language=language)
     levels = cfg["cefr_levels"]
     rows = chunk(levels, 2)
-    kb = [[InlineKeyboardButton(l, callback_data=f"{l}") for l in row] for row in rows]
-
+    kb = [[InlineKeyboardButton(level, callback_data=f"{level}") for level in row] for row in rows]
     await query.edit_message_text(
         text=f"You chose {language}.\nNow select a level or type /cancel to abort",
         reply_markup=InlineKeyboardMarkup(kb),
@@ -136,7 +143,8 @@ async def lang_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return LEVEL
 
 
-async def level_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def level_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Record the user's level and proceed to timezone configuration."""
     query = update.callback_query
     level = query.data
     if level not in cfg["cefr_levels"]:
@@ -168,8 +176,8 @@ async def level_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return TIME
 
 
-async def time_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle timezone search and hour selection."""
+async def time_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Handle timezone selection and delivery hour input."""
     text = update.message.text.strip()
 
     if "timezone" not in context.user_data:
@@ -218,7 +226,8 @@ async def time_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Should not reach here if both timezone and delivery hour are present
     return COMPLETE
 
-async def timezone_button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def timezone_button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Store selected timezone and ask for delivery hour."""
     query = update.callback_query
     tz = query.data
     if tz not in ALL_TIMEZONES:
@@ -235,7 +244,8 @@ async def timezone_button_handler(update: Update, context: ContextTypes.DEFAULT_
 
 
 
-async def complete_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def complete_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Finalize configuration or cancel based on user choice."""
     query = update.callback_query
     await query.answer()
 
@@ -272,35 +282,15 @@ async def complete_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Abort the current configuration conversation."""
     await update.message.reply_text("Setup cancelled.")
     return ConversationHandler.END
 
 
-async def insert_dummy_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    saved = save_new_user(dummy_user)
-    if saved:
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id, text=("dummy user saved")
-        )
-    else:
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id, text=("error in saving dummy user")
-        )
 
 
-async def delete_dummy_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    deleted = delete_user(dummy_user[0])
-    if deleted:
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id, text=("dummy user deleted")
-        )
-    else:
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id, text=("error in deleting dummy user")
-        )
-
-
-async def log_db_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def log_db_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Log all users to the server logs."""
     n = log_all_users()
     if n is None:
         await update.message.reply_text("DB dump failed. Check server logs.")
@@ -308,7 +298,8 @@ async def log_db_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Logged {n} row(s) to server logs.")
 
 
-async def delete_user_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def delete_user_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Delete a user by ID. Only available to the admin."""
     if ADMIN_ID is None or str(update.effective_user.id) != ADMIN_ID:
         await update.message.reply_text("Unauthorized")
         return

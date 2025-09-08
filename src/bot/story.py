@@ -1,6 +1,9 @@
-import json, random, logging
+import json
+import random
+import logging
 from dotenv import load_dotenv
-import os, openai
+import os
+import openai
 from openai import AsyncOpenAI
 from .paths import CONFIG_PATH
 
@@ -15,18 +18,25 @@ client = AsyncOpenAI()
 with open(CONFIG_PATH, 'r', encoding="utf-8") as f:
     _cfg = json.load(f)
 
-def _random_topic():
+def _random_topic() -> str:
+    """Return a random topic from the config."""
     return random.choice(_cfg['topics'])
 
 
 
 
 
-async def generate_text(language, level):
-    '''
-    This function will take language, level and topic (all saved as a list in prefs) from the user input and will query the chatgpt api with that input
-    It will return a string with the output of the query and maybe a number of tokens so we can keep track of the total expense
-    '''
+async def generate_text(language: str, level: str) -> str:
+    """Generate a CEFR-level text in ``language``.
+
+    Args:
+        language: Target language for the story.
+        level: Learner's CEFR level.
+
+    Returns:
+        The generated text or an error message if generation fails.
+    """
+
     topic = _random_topic()
 
     try:
