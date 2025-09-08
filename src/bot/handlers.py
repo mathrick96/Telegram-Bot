@@ -291,6 +291,9 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def log_db_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Log all users to the server logs."""
+    if ADMIN_ID is None or str(update.effective_user.id) != ADMIN_ID:
+        await update.message.reply_text("Unauthorized")
+        return
     n = log_all_users()
     if n is None:
         await update.message.reply_text("DB dump failed. Check server logs.")

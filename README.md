@@ -28,8 +28,7 @@ The application expects the following variables:
 
 * `TELEGRAM_BOT_KEY` – Telegram bot token loaded at startup
 * `OPENAI_API_KEY` – OpenAI key used to initialize the async client
-* `ADMIN_ID` – (optional) Telegram user ID permitted to run `/deleteuser` for maintenance
-
+* `ADMIN_ID` – (optional) Telegram user ID permitted to run admin commands like `/deleteuser` and `/logdb` for maintenance
 ---
 
 ## Quick Start
@@ -102,7 +101,7 @@ data/
 ## Development Notes
 
 * Database and configuration utilities reside under `src/bot/`.
-* `log_all_users()` and related diagnostics can assist with debugging or inspecting the SQLite data store.
+* `log_all_users()` and related diagnostics can assist with debugging or inspecting the SQLite data store. The `/logdb` command exposing this information is restricted to the admin.
 * The codebase is fully containerized, making it straightforward to deploy to a cloud environment when desired.
 
 ---
